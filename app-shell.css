@@ -1,0 +1,41 @@
+/* The same shell is used in Safari and when launched from the Home Screen. */
+:root{--safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);color-scheme:light;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{overscroll-behavior:none;background:#72cec9}
+#app{position:relative;height:100%;height:100dvh}
+button,[role=button],canvas,svg,img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text}
+.app-launch{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;color:#245e58;background:#72cec9}
+.app-launch img{border-radius:24px;box-shadow:0 8px 24px #20665d26}
+.app-launch h1{font-size:26px;margin:0}.app-launch p{font-size:14px}
+/* Keep controls clear of the status bar, home indicator and landscape cutouts. */
+.hud-top{top:calc(24px + var(--safe-top));left:calc(25px + var(--safe-left));right:calc(25px + var(--safe-right))}
+.hud-tools{top:calc(132px + var(--safe-top));left:calc(25px + var(--safe-left))}
+.hud-coral{left:calc(22px + var(--safe-left));bottom:calc(23px + var(--safe-bottom))}
+.full-map .map-navigation{right:calc(25px + var(--safe-right));bottom:calc(24px + var(--safe-bottom))}
+.full-map .discovery-hint{bottom:calc(23px + var(--safe-bottom))}
+.overlay-shade{padding:max(32px,var(--safe-top)) max(32px,var(--safe-right)) max(32px,var(--safe-bottom)) max(32px,var(--safe-left))}
+.screen-overlay{max-height:calc(100dvh - 64px - var(--safe-top) - var(--safe-bottom))}
+.screen-overlay:has(.island-game,.locked-island-panel){padding-top:calc(16px + var(--safe-top));padding-bottom:calc(16px + var(--safe-bottom));padding-left:max(clamp(14px,3vw,40px),var(--safe-left));padding-right:max(clamp(14px,3vw,40px),var(--safe-right));max-height:none}
+.screen-overlay:has(.island-game,.locked-island-panel)>.overlay-close,.screen-overlay:has(.island-game,.locked-island-panel)>.overlay-audio{top:calc(12px + var(--safe-top))}
+#toast{bottom:calc(25px + var(--safe-bottom))}
+/* Pause decorative CSS animations while the app is in the background. */
+.app-hidden #app *,.app-hidden #app *::before,.app-hidden #app *::after{animation-play-state:paused!important}
+@media(pointer:coarse){input,textarea,select{font-size:16px}}
+@media(max-width:700px){.screen-overlay[data-island-room]{padding-left:max(12px,var(--safe-left));padding-right:max(12px,var(--safe-right))}}
+@media(max-width:600px){
+ .hud-top{top:calc(13px + var(--safe-top));left:calc(12px + var(--safe-left));right:calc(12px + var(--safe-right))}
+ .hud-tools{top:calc(130px + var(--safe-top));left:calc(12px + var(--safe-left))}
+ .hud-coral{left:calc(12px + var(--safe-left));bottom:calc(75px + var(--safe-bottom))}
+ .full-map .map-navigation{right:calc(12px + var(--safe-right));bottom:calc(76px + var(--safe-bottom))}
+ .full-map .discovery-hint{bottom:calc(19px + var(--safe-bottom))}
+ .overlay-shade{padding:max(10px,var(--safe-top)) max(10px,var(--safe-right)) max(10px,var(--safe-bottom)) max(10px,var(--safe-left))}
+ .screen-overlay{max-height:calc(100dvh - 20px - var(--safe-top) - var(--safe-bottom))}
+ .screen-overlay:has(.island-game,.locked-island-panel){max-height:none}
+}
+@media(max-height:650px) and (min-width:601px){
+ .hud-top{top:calc(12px + var(--safe-top))}.hud-tools{top:calc(105px + var(--safe-top))}
+ .hud-coral{bottom:calc(14px + var(--safe-bottom))}
+ .overlay-shade{padding:max(12px,var(--safe-top)) max(12px,var(--safe-right)) max(12px,var(--safe-bottom)) max(12px,var(--safe-left))}
+ .screen-overlay{max-height:calc(100dvh - 24px - var(--safe-top) - var(--safe-bottom))}
+ .screen-overlay:has(.island-game,.locked-island-panel){max-height:none}
+}

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type Blaster - Emoji English Edition</title>
+    
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050510;
+            color: white;
+            font-family: system-ui, sans-serif;
+            transition: background-color 0.1s;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .panel {
+            pointer-events: auto;
+        }
+        .blink {
+            animation: blinker 1.5s linear infinite;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-2px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        .shake-screen {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        *{box-sizing:border-box}body{background:radial-gradient(ellipse at 50% 0,#254e70,#142c48 60%,#0e2036);font-weight:700}
+        button{font:inherit;cursor:pointer;touch-action:manipulation}button:focus-visible{outline:3px solid #ffdf7a;outline-offset:3px}.hidden,[hidden]{display:none!important}
+        .ui-layer{padding:14px}.ui-layer>div:first-child{display:flex;justify-content:space-between;gap:10px;color:#dcf6ff;text-shadow:0 2px 3px #102035}.ui-layer>div:first-child>div:first-child{display:grid;gap:6px}#livesDisplay{display:flex;gap:6px;font-size:21px}.opacity-30{opacity:.25}.grayscale{filter:grayscale(1)}
+        .ui-layer>div:nth-child(2){position:absolute;top:63px;left:12px;right:12px;display:flex;justify-content:center;pointer-events:none}#targetPanel{border:2px solid #70cdb9;border-radius:16px;background:#17314be8;padding:7px 16px;text-align:center;color:#c5f7e7;max-width:100%;font-size:9px;box-shadow:0 4px 14px #08182c55;pointer-events:none}#currentInputText{font:700 clamp(12px,2vw,20px) monospace;margin-top:5px}.text-blue-400{color:#79e4cd}.text-gray-600{color:#9aabbb}
+        #startScreen,#gameOverScreen,#winScreen{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;background:#102943ed;backdrop-filter:blur(5px)}h1{font-size:clamp(28px,5vw,48px);color:#ffe4a3;margin:0 0 16px}p{max-width:500px;font-size:16px;line-height:1.8;color:#e7f5f2}#startButton,#retryButton{border:3px solid #fff4cf;border-radius:18px;padding:16px 30px;background:linear-gradient(#ffe7a1,#f4c15e);color:#594227;box-shadow:0 5px 0 #ad7639;font-size:20px}#startButton:disabled{opacity:.5}
+        #keyboard{position:absolute;bottom:10px;left:8px;right:8px;z-index:12;display:grid;gap:7px}#keyboard>div{display:flex;gap:5px;justify-content:center;min-width:0;width:100%}#keyboard button{min-width:0;flex:1;max-width:58px;padding:0;height:46px;border:2px solid #b3e3dc;border-radius:10px;color:#244c55;background:linear-gradient(#fffdf0,#d9eee2);box-shadow:0 3px 0 #5a999c;font-size:20px}#keyboard button:active{transform:translateY(2px);background:#ffe398}
+        #correction{position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:25;background:#fff1d8;color:#754328;border:3px solid #f6c877;border-radius:16px;padding:12px 20px;font-size:23px;white-space:nowrap;box-shadow:0 8px 24px #0005}
+        @media(prefers-reduced-motion:reduce){.blink,.shake-screen{animation:none}}
+    </style>
+</head>
+<body>
+
+    <canvas tabindex="0" id="gameCanvas" aria-label="Asteroides con imágenes para escribir en inglés"></canvas><div id="correction" role="status" hidden></div><div id="keyboard" aria-label="Teclado de letras"></div>
+
+    <div class="ui-layer p-4">
+        <!-- Top HUD -->
+        <div class="flex justify-between w-full p-4 items-start">
+            <div class="flex flex-col gap-2">
+                <div class="text-xl text-blue-400">Aciertos: <span id="scoreDisplay" class="text-white">0</span> / 10</div>
+                <div class="text-sm text-gray-400">Nivel: <span id="levelDisplay" class="text-white">1</span></div>
+            </div>
+            <div class="flex gap-1" id="livesDisplay">
+                <!-- Vidas se inyectan por JS -->
+            </div>
+        </div>
+
+        <!-- Target HUD (Bottom Center) -->
+        <div class="w-full flex justify-center mb-8">
+            <div id="targetPanel" class="hidden panel bg-slate-900/80 border-2 border-blue-500 p-4 rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.5)] flex flex-col items-center gap-2 backdrop-blur-sm">
+                <div class="text-xs text-blue-300">OBJETIVO ACTUAL</div>
+                <div id="currentInputText" class="text-2xl tracking-[0.2em] text-white font-bold h-8"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menus -->
+    <div id="startScreen" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300">
+        <h1 class="text-4xl md:text-6xl text-blue-500 mb-4 text-center drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]">🚀 Escribe</h1>
+        <p class="text-gray-300 mb-8 text-center text-sm md:text-base leading-loose max-w-lg">
+            Adivina la palabra del emoji en <span class="text-yellow-400">Inglés</span> y escríbela para destruirlo.<br><br>
+            ¡Destruye 10 asteroides para ganar!
+        </p>
+        <button id="startButton" type="button" disabled>¡A jugar! ➜</button>
+    </div>
+
+    <div id="gameOverScreen" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-red-950/90 backdrop-blur-sm transition-opacity duration-300">
+        <h1 class="text-5xl text-red-500 mb-4 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">¡Otra oportunidad!</h1>
+        <p class="text-white mb-8 text-xl">Aciertos: <span id="finalScore" class="text-yellow-400">0</span></p>
+        <button id="retryButton" type="button">Volver a intentar ↻</button>
+    </div>
+    
+    <div id="winScreen" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-green-950/90 backdrop-blur-sm transition-opacity duration-300">
+        <h1 class="text-5xl text-green-500 mb-4 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]">¡VICTORIA!</h1>
+        <p class="text-white mb-8 text-xl text-center leading-loose">
+            Has destruido 10 asteroides.<br>¡Tu inglés es genial!
+        </p>
+        <p class="blink text-gray-300 mt-8">Presiona ESPACIO para jugar de nuevo</p>
+    </div>
+
+    <script>
+        const session = new URLSearchParams(location.search).get('session');
+        const send = (type,data={}) => parent.postMessage({game:'blaster',session,type,...data},location.origin);
+        const soundManager={playShoot(){send('sound',{sound:'blaster-laser'});},playError(){send('mistake');send('sound',{sound:'wrong'});},playExplosion(){send('sound',{sound:'blaster-explosion'});},playCrash(){send('sound',{sound:'blaster-crash'});}};
+        let configured=false;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let shipX, shipY;
+
+        function resize() {
+            const oldWidth=width||window.innerWidth,oldHeight=height||window.innerHeight;
+            width=window.innerWidth;height=window.innerHeight;
+            const dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;
+            canvas.style.width=width+'px';canvas.style.height=height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
+            if(typeof enemies!=='undefined')for(const enemy of enemies){enemy.x*=width/oldWidth;enemy.y*=height/oldHeight;}
+            shipX = width / 2;
+            shipY = height - 215; 
+        }
+        window.addEventListener('resize', resize);
+
+
+        // Dictionary of English words and Emojis
+        let emojiDictionary = {}, wordLabels = {}, emojiKeys = [];
+        window.addEventListener('message',event=>{
+            if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='configure'||configured)return;
+            for(const word of event.data.words){const key=word.en.toUpperCase().replace(/[^A-Z]/g,'');if(key){emojiDictionary[key]=word.icon;wordLabels[key]=word.en;}}
+            emojiKeys=Object.keys(emojiDictionary);configured=emojiKeys.length>0;
+            document.querySelector('#startButton').disabled=!configured;
+        });
+        const readyTimer=setInterval(()=>{
+            if(configured){clearInterval(readyTimer);return;}
+            send('ready');
+        },300);
+        send('ready');
+        let availableEmojis = [];
+
+        function fillEmojis() {
+            availableEmojis = [...emojiKeys];
+            // Shuffle array
+            for (let i = availableEmojis.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [availableEmojis[i], availableEmojis[j]] = [availableEmojis[j], availableEmojis[i]];
+            }
+        }
+
+        // Game State
+        let gameState = 'start'; // start, playing, gameover, win
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        
+        let enemies = [];
+        let particles = [];
+        let stars = [];
+        let lasers = [];
+        let activeEnemy = null;
+        resize();
+        
+        let lastTime = 0,animationFrame=null;
+        let enemySpawnTimer = 0;
+        let enemySpawnInterval = 4500;
+        let baseSpeed = 0.45; // A gentler pace for reading and typing
+
+        // UI Elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const winScreen = document.getElementById('winScreen');
+        const finalScore = document.getElementById('finalScore');
+        const targetPanel = document.getElementById('targetPanel');
+        const currentInputText = document.getElementById('currentInputText');
+
+        class Star {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 2;
+                this.speed = (Math.random() * 0.5) + 0.1;
+                this.brightness = Math.random();
+                this.color=`rgba(255, 255, 255, ${this.brightness})`;
+            }
+            update(dt) {
+                this.y += this.speed * (dt * 0.05);
+                if (this.y > height) {
+                    this.y = 0;
+                    this.x = Math.random() * width;
+                }
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8;
+                this.life = 1.0;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+            update(dt) {
+                this.x += this.vx * dt / 16.67;
+                this.y += this.vy * dt / 16.67;
+                this.life -= 0.02 * (dt * 0.06);
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        
+        class Laser {
+            constructor(startX, startY, targetX, targetY) {
+                this.x=startX;this.y=startY-34+shipHover();
+                this.targetX=targetX;this.targetY=targetY;
+                this.life=1;this.age=0;shipShotAt=lastTime;
+            }
+            update(dt){this.age+=dt;this.life=Math.max(0,1-this.age/300);}
+            draw(){
+                if(this.life<=0)return;
+                const travel=Math.min(1,this.age/95),tail=Math.min(1,Math.max(0,(this.age-95)/170));
+                const dx=this.targetX-this.x,dy=this.targetY-this.y;
+                const headX=this.x+dx*travel,headY=this.y+dy*travel;
+                ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+                ctx.beginPath();ctx.moveTo(this.x+dx*tail,this.y+dy*tail);ctx.lineTo(headX,headY);
+                ctx.globalAlpha=this.life*.18;ctx.strokeStyle='#35bcff';ctx.lineWidth=13;ctx.stroke();
+                ctx.globalAlpha=this.life*.8;ctx.strokeStyle='#58dcff';ctx.lineWidth=4;ctx.stroke();
+                ctx.globalAlpha=this.life;ctx.strokeStyle='#f0ffff';ctx.lineWidth=1.7;ctx.stroke();
+                // A brief muzzle flash, followed by a small impact ring and sparks.
+                if(this.age<100){ctx.globalAlpha=(1-this.age/100)*.8;ctx.fillStyle='#d9ffff';ctx.beginPath();ctx.ellipse(this.x,this.y,6,10,0,0,Math.PI*2);ctx.fill();}
+                if(travel===1){const t=(this.age-95)/205;ctx.globalAlpha=(1-t)*.8;ctx.strokeStyle='#9cefff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(this.targetX,this.targetY,4+t*17,0,Math.PI*2);ctx.stroke();for(let i=0;i<5;i++){const angle=i*Math.PI*2/5;ctx.beginPath();ctx.moveTo(this.targetX+Math.cos(angle)*(6+t*15),this.targetY+Math.sin(angle)*(6+t*15));ctx.lineTo(this.targetX+Math.cos(angle)*(10+t*23),this.targetY+Math.sin(angle)*(10+t*23));ctx.stroke();}}
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor() {
+                this.radius = 40;
+                this.x = Math.random() * (width - this.radius * 2) + this.radius;
+                this.y = 180;
+                
+                if (availableEmojis.length === 0) fillEmojis();
+                this.word = availableEmojis.pop();
+                this.emoji = emojiDictionary[this.word];
+                
+                this.typedIndex = 0;
+                // Keep the same flight time while reserving a clear header for the target.
+                this.speed = (baseSpeed + Math.random() * 0.15) * Math.max(.2,(height-335)/650) * Math.max(.2,(height-415)/(height-375));
+            }
+
+            update(dt) {
+                this.y += this.speed * (dt * 0.05);
+            }
+
+            draw() {
+                // Dibujar forma de asteroide genérica
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                ctx.fillStyle = this === activeEnemy ? '#374151' : '#1f2937';
+                ctx.strokeStyle = this === activeEnemy ? '#60a5fa' : '#4b5563';
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Dibujar Emoji
+                ctx.font = '30px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, 0, 0);
+
+                ctx.restore();
+
+                // Dibujar palabra (Pistas)
+                ctx.font = 'bold 16px monospace';
+                ctx.textAlign = 'center';
+                
+                const yOffset = -this.radius - 15;
+                const displayWord=wordLabels[this.word].toUpperCase();
+                const spacing=Math.min(16,(width-24)/displayWord.length);
+                let currentX=Math.max(12,Math.min(width-displayWord.length*spacing,this.x-(displayWord.length-1)*spacing/2));
+                let letter=0;
+                for(let i=0;i<displayWord.length;i++){
+                    const character=displayWord[i];
+                    if(!/[A-Z]/.test(character)){ctx.fillStyle='#c7d9e7';ctx.fillText(character,currentX+i*spacing,this.y+yOffset);continue;}
+                    const typed=letter<this.typedIndex,hint=letter===0||letter===this.word.length-1;
+                    ctx.fillStyle=typed?'#79e4cd':hint?'#a6bbd0':'#fff';
+                    ctx.fillText(typed||hint?character:'_',currentX+i*spacing,this.y+yOffset);letter++;
+                }
+            }
+        }
+
+        for (let i = 0; i < 100; i++) {
+            stars.push(new Star());
+        }
+
+        function createExplosion(x, y) {
+            const colors = ['#f59e0b', '#ef4444', '#fbbf24', '#ffffff'];
+            for (let i = 0; i < 20; i++) {
+                particles.push(new Particle(x, y, colors[Math.floor(Math.random() * colors.length)]));
+            }
+        }
+
+        function spawnEnemy() {
+            if(enemies.length>=3 || score+enemies.length>=10)return;
+            const enemy=new Enemy();
+            if(enemies.length){
+                // Pick open water between asteroids; defer if no clear position fits.
+                const candidates=[enemy.x,enemy.radius,width-enemy.radius,...Array.from({length:16},()=>enemy.radius+Math.random()*(width-enemy.radius*2))];
+                const clearance=x=>Math.min(...enemies.map(other=>Math.hypot(x-other.x,enemy.y-other.y)));
+                enemy.x=candidates.reduce((best,x)=>clearance(x)>clearance(best)?x:best);
+                if(clearance(enemy.x)<150){availableEmojis.push(enemy.word);return;}
+            }
+            enemies.push(enemy);
+        }
+
+        function updateLivesUI() {
+            livesDisplay.innerHTML = '';
+            for (let i = 0; i < 3; i++) {
+                const heart = document.createElement('div');
+                heart.innerHTML = '❤️';
+                heart.className = `text-xl ${i < lives ? 'opacity-100' : 'opacity-30 grayscale'}`;
+                livesDisplay.appendChild(heart);
+            }
+        }
+
+        function updateHUDText() {
+            if (!activeEnemy) {
+                targetPanel.classList.add('hidden');
+                return;
+            }
+            targetPanel.classList.remove('hidden');
+            
+            let html='',letter=0;
+            for(const character of wordLabels[activeEnemy.word].toUpperCase()){
+                if(!/[A-Z]/.test(character)){html+=' &nbsp; ';continue;}
+                const typed=letter<activeEnemy.typedIndex,hint=letter===0||letter===activeEnemy.word.length-1;
+                html+=`<span class="${typed?'text-blue-400':hint?'text-gray-600':'text-white'}">${typed||hint?character:'_'}</span> `;letter++;
+            }
+            currentInputText.innerHTML = html;
+        }
+
+        let shipShotAt=-Infinity,shipSprite=null,shipSpriteRatio=0;
+        const reducedShipMotion=matchMedia('(prefers-reduced-motion: reduce)');
+        function shipHover(){return reducedShipMotion.matches?0:Math.sin(lastTime/430)*1.8;}
+        function buildShipSprite(){
+            const ratio=Math.min(devicePixelRatio||1,2);
+            if(shipSprite&&shipSpriteRatio===ratio)return;
+            shipSpriteRatio=ratio;shipSprite=document.createElement('canvas');shipSprite.width=88*ratio;shipSprite.height=84*ratio;
+            const art=shipSprite.getContext('2d');art.scale(ratio,ratio);art.translate(44,46);
+            const hull=art.createLinearGradient(-23,-25,23,18);hull.addColorStop(0,'#ffffff');hull.addColorStop(.48,'#e5f4f5');hull.addColorStop(1,'#80aebe');
+            const glass=art.createLinearGradient(-8,-25,9,-4);glass.addColorStop(0,'#b5ffff');glass.addColorStop(.4,'#51c9ed');glass.addColorStop(1,'#24749e');
+            const shape=(path,fill,stroke='#346278',line=1.5)=>{const outline=new Path2D(path);art.fillStyle=fill;art.fill(outline);if(stroke){art.strokeStyle=stroke;art.lineWidth=line;art.stroke(outline);}};
+            shape('M-10-8 -36 15Q-39 22-32 23L-10 16ZM10-8 36 15Q39 22 32 23L10 16Z','#74b9cf');
+            shape('M-12-4 -32 16 -14 12ZM12-4 32 16 14 12Z','#eafaff');
+            shape('M-16 10h-9v13h10ZM16 10h9v13H15Z','#315e78');
+            shape('M0-37Q-10-29-14-4L-12 18Q0 25 12 18L14-4Q10-29 0-37Z',hull);
+            shape('M0-29Q-9-21-8-9Q0-3 8-9Q9-21 0-29Z',glass,'#366f91',2);
+            shape('M-4-23Q-7-17-5-12L-2-11Q-5-18-1-24Z','#eaffff',null);
+            shape('M-11 5 -6 10 -7 18 -12 16ZM11 5 6 10 7 18 12 16Z','#e6b95b',null);
+            shape('M-4 13h8v8h-8Z','#366582');
+            art.strokeStyle='#b6d4dc';art.lineWidth=1;art.beginPath();art.moveTo(-9,-4);art.lineTo(-5,1);art.moveTo(9,-4);art.lineTo(5,1);art.stroke();
+            shape('M0-1 2 3 6 4 2 6 0 10 -2 6 -6 4 -2 3Z','#fff3ae','#c29850',.7);
+            art.fillStyle='#b9ffff';for(const x of [-31,31]){art.beginPath();art.arc(x,18,2,0,Math.PI*2);art.fill();}
+        }
+        function drawShip(){
+            buildShipSprite();
+            const pulse=reducedShipMotion.matches?.5:(1+Math.sin(lastTime/65))/2;
+            const shot=Math.max(0,1-(lastTime-shipShotAt)/140);
+            ctx.save();ctx.translate(shipX,shipY+shipHover());
+            // Animated twin engines are separate from the cached high-resolution hull.
+            ctx.globalCompositeOperation='lighter';ctx.fillStyle='#38bfff';ctx.globalAlpha=.17;
+            ctx.beginPath();ctx.ellipse(0,28,27,12+pulse*3,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+            for(const x of [-20,20]){ctx.fillStyle='#37c9f0';ctx.beginPath();ctx.moveTo(x-4,19);ctx.quadraticCurveTo(x-5,29,x,34+pulse*7);ctx.quadraticCurveTo(x+5,29,x+4,19);ctx.fill();ctx.fillStyle='#ecffff';ctx.beginPath();ctx.moveTo(x-2,20);ctx.lineTo(x,29+pulse*3);ctx.lineTo(x+2,20);ctx.fill();}
+            ctx.globalCompositeOperation='source-over';ctx.drawImage(shipSprite,-44,-46,88,84);
+            if(shot>0){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=shot*.65;ctx.fillStyle='#bdfaff';ctx.beginPath();ctx.arc(0,-34,4+shot*4,0,Math.PI*2);ctx.fill();}
+            ctx.restore();
+            ctx.strokeStyle='rgba(59,130,246,.3)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,height-195);ctx.lineTo(width,height-195);ctx.stroke();
+        }
+
+        function initGame() {
+            if(!configured)return;
+            send('start');
+            const correction=document.querySelector('#correction');clearTimeout(correction.timer);correction.hidden=true;
+            enemySpawnTimer=0;shipShotAt=-Infinity;
+            
+            fillEmojis();
+            score = 0;
+            lives = 3;
+            level = 1;
+            baseSpeed = 0.45;
+            enemySpawnInterval = 4500;
+            enemies = [];
+            particles = [];
+            lasers = [];
+            activeEnemy = null;
+            
+            scoreDisplay.innerText = score;
+            levelDisplay.innerText = level;
+            updateLivesUI();
+            updateHUDText();
+            
+            gameState = 'playing';
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            winScreen.classList.add('hidden');
+            
+            spawnEnemy();
+            canvas.focus({preventScroll:true});
+        }
+
+        function gameOver() {
+            gameState = 'gameover';send('loss');
+            targetPanel.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            finalScore.innerText = score;
+        }
+        
+        function gameWin() {
+            gameState = 'win';send('win',{score});
+            targetPanel.classList.add('hidden');
+            winScreen.classList.remove('hidden');
+        }
+
+        function handleKey(e) {
+            if(document.hidden||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
+            if(e.key==='Escape'){send('exit');return;}
+            if(e.key===' '||/^[a-z]$/i.test(e.key))e.preventDefault?.();
+            if (gameState === 'start' || gameState === 'gameover' || gameState === 'win') {
+                if (e.key !== ' ' && e.key !== 'Enter') return;
+                initGame();
+                return;
+            }
+
+            if (gameState !== 'playing') return;
+
+            // Ignorar teclas de control
+            if (e.key.length !== 1) return;
+
+            const key = e.key.toUpperCase();
+            if(!/^[A-Z]$/.test(key))return;
+            
+            // Si no hay enemigo activo, buscar uno
+            if (!activeEnemy) {
+                let found = false;
+                for (let enemy of enemies) {
+                    if (enemy.word[0] === key) {
+                        activeEnemy = enemy;
+                        activeEnemy.typedIndex = 1;
+                        soundManager.playShoot();
+                        lasers.push(new Laser(shipX, shipY, activeEnemy.x, activeEnemy.y));
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    soundManager.playError();
+                } else {
+                    updateHUDText();
+                }
+            } 
+            // Si hay enemigo activo, verificar siguiente letra
+            else {
+                if (key === activeEnemy.word[activeEnemy.typedIndex]) {
+                    activeEnemy.typedIndex++;
+                    soundManager.playShoot();
+                    lasers.push(new Laser(shipX, shipY, activeEnemy.x, activeEnemy.y));
+                    
+                    if (activeEnemy.typedIndex === activeEnemy.word.length) {
+                        soundManager.playExplosion();
+                        createExplosion(activeEnemy.x, activeEnemy.y);
+                        
+                        enemies = enemies.filter(e => e !== activeEnemy);
+                        activeEnemy = null;
+                        
+                        score += 1;send('progress',{score});
+                        scoreDisplay.innerText = score;
+                        
+                        if (score >= 10) {
+                            gameWin();
+                            return; // Terminamos por victoria
+                        }
+                        
+                        if (score % 5 === 0) {
+                            level++;
+                            levelDisplay.innerText = level;
+                            baseSpeed += 0.06;
+                            enemySpawnInterval = Math.max(4000, enemySpawnInterval - 250);
+                        }
+                    }
+                    updateHUDText();
+                } else {
+                    soundManager.playError();
+                }
+            }
+        }
+        window.addEventListener('keydown',handleKey);
+        document.querySelector('#startButton').addEventListener('click',initGame);
+        document.querySelector('#retryButton').addEventListener('click',initGame);
+        document.querySelector('#keyboard').innerHTML=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].map(row=>'<div>'+[...row].map(key=>'<button type="button" aria-label="Letra '+key+'">'+key+'</button>').join('')+'</div>').join('');
+        document.querySelector('#keyboard').addEventListener('click',event=>{if(event.target.matches('button')&&gameState==='playing')handleKey({key:event.target.textContent});});
+        function pauseAnimation(){cancelAnimationFrame(animationFrame);animationFrame=null;lastTime=0;}
+        function resumeAnimation(){if(!document.hidden&&animationFrame===null)animationFrame=requestAnimationFrame(gameLoop);}
+        document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseAnimation();else resumeAnimation();});
+        window.addEventListener('pagehide',pauseAnimation);
+        window.addEventListener('pageshow',resumeAnimation);
+
+        function gameLoop(timestamp) {
+            animationFrame=null;
+            const dt = lastTime ? Math.min(50,timestamp-lastTime) : 0;
+            if(document.hidden){lastTime=0;return;}
+            lastTime = timestamp;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Dibujar fondo (estrellas)
+            stars.forEach(star => {
+                star.update(dt);
+                star.draw();
+            });
+
+            if (gameState === 'playing') {
+                // Spawn enemies
+                enemySpawnTimer += dt;
+                if (enemySpawnTimer > enemySpawnInterval) {
+                    spawnEnemy();
+                    enemySpawnTimer = 0;
+                }
+                
+                // Actualizar lasers
+                for (let i = lasers.length - 1; i >= 0; i--) {
+                    lasers[i].update(dt);
+                    lasers[i].draw();
+                    if (lasers[i].life <= 0) {
+                        lasers.splice(i, 1);
+                    }
+                }
+
+                // Actualizar enemigos y colisiones
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    let enemy = enemies[i];
+                    enemy.update(dt);
+                    
+                    // Si el asteroide impacta la nueva altura de la base
+                    if (enemy.y + enemy.radius > height - 195) {
+                        createExplosion(enemy.x, height - 195); 
+                        soundManager.playCrash();
+                        
+                        if (activeEnemy === enemy) {
+                            activeEnemy = null;
+                            currentInputText.innerText = ''; 
+                            targetPanel.classList.add('hidden');
+                        }
+                        
+                        enemies.splice(i, 1);
+                        
+                        // Perder vida
+                        lives--;send('mistake');
+                        const correction=document.querySelector('#correction');
+                        correction.textContent=enemy.emoji+' '+wordLabels[enemy.word];
+                        correction.hidden=false;clearTimeout(correction.timer);correction.timer=setTimeout(()=>correction.hidden=true,2600);
+                        updateLivesUI();
+                        
+                        document.body.style.backgroundColor = '#450a0a';
+                        document.body.classList.add('shake-screen');
+                        
+                        setTimeout(() => { 
+                            document.body.style.backgroundColor = '#050510'; 
+                            document.body.classList.remove('shake-screen');
+                        }, 400); 
+                        
+                        if (lives <= 0) {
+                            gameOver();break;
+                            // No hacemos return aquí para que se dibuje el frame final y explosiones
+                        }
+                    }
+                }
+                
+                // Dibujar jugador
+                drawShip();
+            }
+
+            // Dibujar enemigos
+            enemies.forEach(enemy => enemy.draw());
+
+            // Actualizar y dibujar partículas
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.update(dt);
+                p.draw();
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            animationFrame=requestAnimationFrame(gameLoop);
+        }
+
+        // Iniciar loop de renderizado (menú principal)
+        resumeAnimation();
+
+    </script>
+</body>
+</html>

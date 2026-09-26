@@ -1,0 +1,158 @@
+const SoundWorld = (()=>{
+ const defaults={effects:.65,ambience:.35,music:.22};
+ let volumes={...defaults};try{const saved=JSON.parse(localStorage.getItem('ximena-audio')||'{}');for(const key of Object.keys(defaults))if(Number.isFinite(saved[key]))volumes[key]=Math.max(0,Math.min(1,saved[key]));}catch{}
+ let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,lastEffect=0,blasterNoise;
+ const voices=new Set(),gainTargets=new WeakMap();
+ function ramp(param,value){if(gainTargets.get(param)===value)return;gainTargets.set(param,value);const t=audioContext.currentTime;param.cancelScheduledValues(t);param.setTargetAtTime(value,t,.06);}
+ function track(source,nodes=[]){voices.add(source);source.onended=()=>{voices.delete(source);source.disconnect();nodes.forEach(n=>n.disconnect());source.onended=null;};}
+ function note(freq,delay=0,duration=.2,volume=.1,type='sine',bus=effects,endFreq){
+  if(voices.size>48)return;
+  const oscillator=audioContext.createOscillator(),gain=audioContext.createGain(),t=audioContext.currentTime+delay;
+  oscillator.type=type;oscillator.frequency.setValueAtTime(freq,t);if(endFreq)oscillator.frequency.exponentialRampToValueAtTime(endFreq,t+duration);
+  gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(volume,t+.015);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+  oscillator.connect(gain);gain.connect(bus);track(oscillator,[gain]);oscillator.start(t);oscillator.stop(t+duration+.03);
+ }
+ function breeze(duration=.3,volume=.08,frequency=900,bus=effects){
+  const source=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter(),gain=audioContext.createGain(),t=audioContext.currentTime;
+  source.buffer=noise;filter.type='lowpass';filter.frequency.value=frequency;
+  gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(volume,t+duration*.3);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+  source.connect(filter);filter.connect(gain);gain.connect(bus);track(source,[filter,gain]);source.start();source.stop(t+duration+.02);
+ }
+ // Original Emoji Blaster synthesis, routed through the shared effects volume.
+ function blasterSound(kind){
+  if(voices.size>48)return;
+  const t=audioContext.currentTime,gain=audioContext.createGain();
+  gain.connect(effects);
+  if(kind==='blaster-explosion'){
+   if(!blasterNoise){
+    blasterNoise=audioContext.createBuffer(1,Math.floor(audioContext.sampleRate*.2),audioContext.sampleRate);
+    const samples=blasterNoise.getChannelData(0);
+    for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
+   }
+   const source=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter();
+   source.buffer=blasterNoise;filter.type='lowpass';filter.frequency.value=1000;
+   source.connect(filter);filter.connect(gain);
+   gain.gain.setValueAtTime(.3,t);gain.gain.exponentialRampToValueAtTime(.01,t+.2);
+   track(source,[filter,gain]);source.start(t);
+  }else{
+   const crash=kind==='blaster-crash',duration=crash?.5:.1,source=audioContext.createOscillator();
+   source.type='square';source.connect(gain);
+   source.frequency.setValueAtTime(crash?120:800,t);
+   source.frequency.exponentialRampToValueAtTime(crash?10:100,t+duration);
+   gain.gain.setValueAtTime(crash?.5:.1,t);gain.gain.exponentialRampToValueAtTime(.01,t+duration);
+   track(source,[gain]);source.start(t);source.stop(t+duration);
+  }
+ }
+ function init(){
+  audioContext ||= new (window.AudioContext||window.webkitAudioContext)();
+  if(master)return;
+  master=audioContext.createGain();const limiter=audioContext.createDynamicsCompressor();master.connect(limiter);limiter.connect(audioContext.destination);master.gain.value=0;
+  effects=audioContext.createGain();ambience=audioContext.createGain();music=audioContext.createGain();for(const bus of [effects,ambience,music])bus.connect(master);
+  noise=audioContext.createBuffer(1,audioContext.sampleRate*4,audioContext.sampleRate);const data=noise.getChannelData(0);let brown=0;for(let i=0;i<data.length;i++){brown=(brown+Math.random()*.04-.02)/1.02;data[i]=brown*5;}
+  const sea=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter(),wave=audioContext.createGain();sea.buffer=noise;sea.loop=true;filter.type='lowpass';filter.frequency.value=650;wave.gain.value=.16;
+  sea.connect(filter);filter.connect(wave);wave.connect(ambience);
+  const lfo=audioContext.createOscillator(),depth=audioContext.createGain();lfo.frequency.value=.11;depth.gain.value=.10;lfo.connect(depth);depth.connect(wave.gain);sea.start();lfo.start();
+ }
+ // Original eight-bar island theme: a playful question and a warm answering phrase.
+ const musicStepSeconds=60/108/2;
+ const musicChords=[[60,64,67],[59,62,67],[57,60,64],[57,60,65],[60,64,67],[59,64,67],[57,60,65],[59,62,67]];
+ const musicBass=[48,43,45,41,48,40,41,43];
+ const musicMelody=[
+  [72,null,76,79,81,79,76,null],
+  [74,76,79,null,74,null,71,74],
+  [76,null,79,81,84,null,81,79],
+  [77,76,74,null,72,null,null,69],
+  [72,76,79,null,84,83,81,79],
+  [76,null,79,83,81,79,76,null],
+  [77,null,81,79,77,76,74,72],
+  [74,76,79,null,71,74,72,null]
+ ];
+ const pitch=midi=>440*2**((midi-69)/12);
+ function shaker(delay){
+  if(voices.size>42)return;
+  const source=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter(),gain=audioContext.createGain(),t=audioContext.currentTime+delay;
+  source.buffer=noise;filter.type='highpass';filter.frequency.value=1700;
+  gain.gain.setValueAtTime(.09,t);gain.gain.exponentialRampToValueAtTime(.0001,t+.065);
+  source.connect(filter);filter.connect(gain);gain.connect(music);track(source,[filter,gain]);source.start(t);source.stop(t+.075);
+ }
+ function beat(){
+  if(muted||document.hidden||audioContext?.state!=='running')return;
+  const now=audioContext.currentTime;
+  if(nextMusicBeat<now)nextMusicBeat=now+.035;
+  while(nextMusicBeat<now+.12){
+   const step=melodyStep%8,bar=Math.floor(melodyStep/8)%8,delay=nextMusicBeat-now;
+   if(volumes.music>0){
+    const melody=musicMelody[bar][step],chord=musicChords[bar];
+    if(melody!==null){
+     const duration=musicMelody[bar][step+1]===null ? .65 : .34;
+     note(pitch(melody),delay,duration,.095,'sine',music);
+     note(pitch(melody)*2,delay,.16,.012,'sine',music);
+    }
+    if(step%2===0){
+     note(pitch(musicBass[bar]+(step===4?7:0)),delay,.42,.065,'sine',music);
+     note(pitch(chord[(step/2)%3]),delay+.025,.32,.026,'triangle',music);
+    }
+    if(step===0||step===4){
+     chord.forEach((midi,i)=>note(pitch(midi),delay+i*.018,.9,.012,'sine',music));
+     note(105,delay,.12,.045,'sine',music,48);
+    }
+    if(step%2===1)shaker(delay);
+   }
+   if(volumes.ambience>0&&screen==='map'&&melodyStep%24===0){note(1050,delay,.16,.025,'sine',ambience,1450);note(1400,delay+.2,.18,.018,'sine',ambience,1100);}
+   melodyStep++;nextMusicBeat+=musicStepSeconds;
+  }
+ }
+ function sync(){
+  if(!master)return;
+  ramp(master.gain,muted||document.hidden?0:.8);
+  ramp(effects.gain,volumes.effects);ramp(ambience.gain,volumes.ambience*(['game','adventure'].includes(screen)?.4:1));ramp(music.gain,volumes.music*(['game','adventure'].includes(screen)?.45:1));
+  if(muted||document.hidden){clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;for(const voice of voices){try{voice.stop();}catch{}voice.onended?.();}if(audioContext.state==='running')audioContext.suspend().catch(()=>{});}
+  else {if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});if(volumes.music>0||(volumes.ambience>0&&screen==='map')){if(!loopTimer){nextMusicBeat=0;loopTimer=setInterval(beat,50);}}else{clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;}}
+ }
+ function play(kind){
+  if(muted||document.hidden)return;
+  try{
+   init();sync();
+   const now=performance.now();if(kind==='tap'&&now-lastEffect<70)return;lastEffect=now;
+   const sequence=(frequencies,spacing=.11,duration=.27)=>frequencies.forEach((f,i)=>note(f,i*spacing,duration,.11));
+   switch(kind){
+    case 'blaster-laser':case 'blaster-explosion':case 'blaster-crash':blasterSound(kind);break;
+    case 'pirate-swish':breeze(.3,.09,1800);note(360,.05,.3,.075,'sine',effects,180);note(240,.24,.18,.055,'triangle',effects,400);break;
+    case 'arrow':breeze(.3,.11,2400);note(250,0,.13,.05,'triangle',effects,620);break;
+    case 'balloon-pop':breeze(.08,.15,1500);note(650,0,.1,.09,'sine',effects,130);break;
+    case 'departure':breeze(1.2,.12,1000);sequence([261.63,392,523.25,659.25],.18,.55);note(196,.15,.7,.06,'triangle');break;
+    case 'arrival':sequence([523.25,783.99,1046.5,1318.5],.13,.5);breeze(.4,.06,1700);break;
+    case 'combo':sequence([659.25,783.99,1046.5,1318.5],.08,.25);break;
+    case 'correct':sequence([523.25,659.25,783.99]);break;
+    case 'wrong':note(260,0,.18,.13,'triangle',effects,190);note(210,.13,.22,.10,'triangle',effects,150);break;
+    case 'lose':sequence([392,329.63,261.63,220],.18,.45);break;
+    case 'win':sequence([523.25,659.25,783.99,1046.5,783.99,1046.5],.14,.5);note(261.63,.55,.9,.065);break;
+    case 'treasure':breeze(.5,.09);sequence([659,880,1046,1318],.13,.55);break;
+    case 'bubble':note(500,0,.12,.12,'sine',effects,1550);break;
+    case 'fish':sequence([780,1040],.09,.15);break;
+    case 'turtle':sequence([392,523],.13,.25);break;
+    case 'octopus':sequence([440,660,550],.1,.2);break;
+    case 'mascot':sequence([523,659,523,784],.1,.2);break;
+    case 'flip':breeze(.17,.10,1500);note(760,.08,.14,.045);break;
+    case 'travel':breeze(1,.12,1300);sequence([392,523.25,659.25,783.99,1046.5],.14,.5);break;
+    case 'retry':sequence([330,440,660],.12,.25);break;
+    case 'jump':note(350,0,.18,.09,'sine',effects,850);break;
+    case 'sink':breeze(.55,.12,500);note(240,0,.3,.08,'sine',effects,90);break;
+    case 'splash':breeze(.32,.12,700);note(460,.04,.17,.035,'sine',effects,220);break;
+    case 'locked':sequence([330,294],.13,.23);break;
+    case 'close':note(540,0,.15,.07,'sine',effects,340);break;
+    default:note(680,0,.11,.065,'sine',effects,880);
+   }
+  }catch{/* Browsers without audio can still run the game. */}
+ }
+ function setVolume(key,value){if(!(key in defaults))return;volumes[key]=Math.max(0,Math.min(1,Number(value)));try{localStorage.setItem('ximena-audio',JSON.stringify(volumes));}catch{}sync();}
+ function toggle(){muted=!muted;if(!muted)play('tap');else sync();}
+ return {play,sync,toggle,setVolume,get volumes(){return {...volumes};}};
+})();
+document.addEventListener('visibilitychange',()=>SoundWorld.sync());
+// Clicks only: pointer movement and dragging do not make button sounds.
+document.addEventListener('click',event=>{
+ const button=event.target.closest('button');if(!button||button.disabled||button.closest('[inert]'))return;
+ if(['find','memory','connect','memory-shell','memory-pearl'].includes(button.dataset.play)||button.dataset.island!==undefined||button.dataset.ocean||button.dataset.answer||button.dataset.action==='sound'||button.dataset.action==='next'||button.dataset.action==='game')return;
+ SoundWorld.play(button.dataset.action==='flip'?'flip':button.dataset.action==='preview'?'locked':button.dataset.action==='map'?'close':'tap');
+},true);
