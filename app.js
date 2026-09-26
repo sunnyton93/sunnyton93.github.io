@@ -1,5 +1,19 @@
 const root = document.querySelector('#app');
+const viewportMeta = document.querySelector('meta[name="viewport"]');
+const defaultViewport = viewportMeta?.content;
 let theme = 'sun', screen = 'map', muted = true, question = 0, hearts = 3, correct = 0, selected = null, feedback = '', filter = '', audioContext;
+function syncZoomLock(){
+ if(!viewportMeta||!defaultViewport)return;
+ const lockZoom=screen!=='map';
+ const viewport=lockZoom
+  ?defaultViewport.replace(/,?\s*maximum-scale=[^,]+/g,'').replace(/,?\s*user-scalable=[^,]+/g,'')+', maximum-scale=1, user-scalable=no'
+  :defaultViewport;
+ if(viewportMeta.content!==viewport)viewportMeta.setAttribute('content',viewport);
+}
+function preventGamePinchZoom(event){if(screen!=='map')event.preventDefault();}
+document.addEventListener('gesturestart',preventGamePinchZoom,{passive:false});
+document.addEventListener('gesturechange',preventGamePinchZoom,{passive:false});
+document.addEventListener('touchmove',event=>{if(screen!=='map'&&event.touches.length>1)event.preventDefault();},{passive:false});
 const words = [
  {en:'Turtle',es:'Tortuga',kind:'turtle'}, {en:'Octopus',es:'Pulpo',kind:'octopus'},
  {en:'Fish',es:'Pez',kind:'fish'}, {en:'Crab',es:'Cangrejo',kind:'crab'}
@@ -38,6 +52,7 @@ function coinShopView(){const eligible=Math.floor(coinBalance/3000)*100,history=
 function gameHud(){return `<div class="game-hud"><div class="hud-top"><div class="hud-counters"><button class="hud-coins" data-action="coin-shop" title="Abrir canje de monedas" aria-label="Monedas: ${coinBalance.toLocaleString('es-MX')}. Abrir canje">${goldCoinIcon()} <b>${coinBalance.toLocaleString('es-MX')}</b></button><span class="hud-stars">⭐ <b>${totalStars()}</b></span><button class="hud-round" data-action="sound" aria-label="${muted?'Activar':'Desactivar'} sonido">${muted?'♪ ×':'♪ ✓'}</button></div></div><div class="hud-tools"><button data-action="dictionary" aria-label="Abrir diccionario"><span>▤</span><b>Diccionario</b></button><button data-action="collection" aria-label="Abrir mis cartas"><span>✧</span><b>Mis cartas</b></button></div><button class="hud-coral" data-ocean="mascot" aria-label="Saludar a Coral">${animal('turtle')}<span>¡Hola, Ximena!</span></button></div>`;}
 function audioSettingsView(){return `${header('Sonidos de la aventura','DALE VIDA A TU OCÉANO')}<div class="audio-settings"><p>Olas tranquilas, música suave y una sorpresa en cada toque.</p><button class="primary" data-action="sound">${muted?'♪ Activar sonido':'♪ Silenciar todo'}</button>${[['effects','Efectos','Botones, animales, aciertos y premios'],['ambience','Océano','Olas y pequeños sonidos del paisaje'],['music','Música','Melodía suave de exploración']].map(([key,label,hint])=>`<label class="audio-slider"><span><b>${label}</b><small>${hint}</small></span><output>${Math.round(SoundWorld.volumes[key]*100)}%</output><input type="range" min="0" max="100" step="1" value="${Math.round(SoundWorld.volumes[key]*100)}" data-volume="${key}" aria-label="Volumen de ${label}"></label>`).join('')}<small class="audio-note">Tus volúmenes se recuerdan en este dispositivo. Activa el sonido con ♪ para empezar.</small></div>`;}
 function render(){
+ syncZoomLock();
  if(screen!=='adventure'){cancelGameTurn();adventure=null;}
  if(screen==='adventure'&&document.querySelector('.island-game')){updateAdventure();return;}
  const previousFocus=document.activeElement;
