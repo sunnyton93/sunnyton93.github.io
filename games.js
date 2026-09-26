@@ -121,7 +121,7 @@ luceroOpenRoutes=readLuceroRoutes();
 function shuffle(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
 function reshuffle(items){const result=shuffle(items);return result.every((id,i)=>id===items[i])?[...items.slice(1),items[0]]:result;}
 function modeStars(index,mode){
- if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-label">BONUS</span><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS} <span>monedas!</span></span></span></span>`;
+ if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS} <span>monedas!</span></span></span></span>`;
  const count=islandProgress[`${index}-${mode}`]||0;
  return `<span class="mode-stars" role="img" aria-label="${count} de 3 estrellas">${[1,2,3].map(n=>`<span class="mode-star ${n<=count?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</span>`;
 }

@@ -15,7 +15,7 @@ document.addEventListener('click',event=>{
  const target=event.target.closest('[data-ocean]');
  if(target){const kind=target.dataset.ocean;
   if(kind==='motion'){calm=!calm;refreshMotion();SoundWorld.play('tap');return;}
-  if(kind==='mascot'){announceOcean('¡Hola, Ximena! Soy Coral. ¿Buscamos a mis tres amigos en el océano?');}
+  if(kind==='mascot'){announceOcean('Te quiero con todo mi corazón. Atte. Sunny');}
   else if(kind==='treasure'){target.classList.toggle('opened');announceOcean(target.classList.contains('opened')?'¡Un tesoro de estrellas! Sigue explorando para conocer nuevos amigos.':'El cofre guarda otra sorpresa para tu próxima visita.');}
   else if(kind==='bubble'){if(target.classList.contains('popped'))return;target.classList.add('popped');setTimeout(()=>target.classList.remove('popped'),1800);}
   else {discovered.add(kind);target.classList.add('greeted');setTimeout(()=>target.classList.remove('greeted'),2500);const word=words.find(w=>w.kind===kind);announceOcean(`${word.en} · ${word.es}${discovered.size===3?' — ¡Encontraste a los tres amigos!':' — ¡Encontraste un amigo!'} `);const counter=document.querySelector('#discovery-count');if(counter)counter.textContent=`${discovered.size}/3 amigos`;}
