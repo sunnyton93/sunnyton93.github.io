@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ximena-app-';
-const CACHE_NAME = `${CACHE_PREFIX}v3`;
+const CACHE_NAME = `${CACHE_PREFIX}v4`;
 const APP_ASSETS = [
  '/', '/style.css', '/app-shell.css', '/ocean.js', '/archipelago.js', '/sound.js',
  '/island-vocabulary.js', '/games.js', '/platforms.js', '/app.js', '/pwa.js',

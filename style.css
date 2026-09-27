@@ -258,7 +258,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .platform-time{height:7px;background:#dce8db;border-radius:8px;overflow:hidden;margin:10px 8px}.platform-time-fill{display:block;height:100%;background:linear-gradient(90deg,#efb861,#45af9c);transform-origin:left}
 .platform-scene{width:100%;max-height:390px;display:block;border-radius:26px;outline:none;overflow:hidden;filter:drop-shadow(0 5px 0 #438e9c30);user-select:none}.platform-scene:focus-visible{outline:none}.platform-stage:has(.platform-scene:focus-visible){border-color:#39949a}
 .word-platform{transition:transform .65s cubic-bezier(.5,0,.8,.3),opacity .65s;transform-box:fill-box;transform-origin:center}.word-platform.is-sunk{transform:translateY(76px) scale(.85);opacity:0}.word-platform.is-safe .platform-top{stroke:#fcffc5;stroke-width:7;filter:drop-shadow(0 0 7px #ffffb8)}.word-platform.is-standing .platform-top{stroke:#fff;stroke-width:5}.platform-word{paint-order:stroke;stroke:#ffffff50;stroke-width:2px}
-.platform-waves{transform-origin:center;animation:salta-tide 4s ease-in-out infinite}.platform-sparkles{animation:salta-glimmer 2.3s ease-in-out infinite}.platform-player{pointer-events:none;filter:drop-shadow(0 2px 0 #744c4430)}.is-walking .explorer-body{transform-origin:0 -15px;animation:salta-run .23s ease-in-out infinite alternate}.is-jumping .explorer-body{transform:rotate(-6deg)}
+.platform-waves{transform-origin:center;animation:salta-tide 4s ease-in-out infinite}.platform-sparkles{animation:salta-glimmer 2.3s ease-in-out infinite}.platform-player{pointer-events:none;filter:drop-shadow(0 2px 0 #744c4430)}
 .platform-splash{opacity:0;fill:none;stroke:#effff5;stroke-width:5;stroke-linecap:round;pointer-events:none}.platform-splash.is-active{animation:salta-splash .85s ease-out both}.platform-scene.is-urgent .word-platform:not(.is-sunk){animation:salta-rumble .18s linear infinite alternate}.platform-game:has(.is-urgent) .platform-countdown{color:#bc593e}.platform-scene[data-phase=success] .platform-sparkles{animation:salta-glimmer .35s infinite alternate}
 
 .platform-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#e4eddf;border:1px solid #ccdccb;border-radius:23px;padding:10px 18px;user-select:none}.platform-dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(2,43px);gap:5px}.platform-dpad button{font-size:26px;border:2px solid #accac0;background:linear-gradient(#fffdf1,#d7eadd);color:#34776d;border-radius:13px;box-shadow:0 3px 0 #9bbbaf;touch-action:none;padding:0;min-height:43px}.platform-dpad [data-direction=up]{grid-column:2}.platform-dpad [data-direction=left]{grid-column:1;grid-row:2}.platform-dpad [data-direction=down]{grid-column:2;grid-row:2}.platform-dpad [data-direction=right]{grid-column:3;grid-row:2}.platform-controls button.is-held{transform:translateY(3px);box-shadow:none;background:#b9e3cf}
@@ -266,12 +266,11 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .screen-overlay:has(.platform-game)>header{margin-bottom:10px}.island-game:has(.platform-game) .lesson-modes{margin:8px 0}.island-game:has(.platform-game) .lesson-modes button{padding-block:7px;min-height:56px}
 @keyframes salta-host{50%{transform:translateY(-4px) rotate(-4deg)}}
 @keyframes salta-tide{50%{transform:translateY(4px);opacity:.3}}
-@keyframes salta-run{from{transform:rotate(-5deg)}to{transform:rotate(5deg)}}
 @keyframes salta-glimmer{50%{opacity:.2}}
 @keyframes salta-rumble{from{transform:translateX(-1px)}to{transform:translateX(1px)}}
 @keyframes salta-splash{0%{opacity:0;stroke-width:1}25%{opacity:1;stroke-width:6}100%{opacity:0;stroke-width:1}}
 @media(max-width:600px){.lesson-modes button{font-size:9px}.lesson-modes .mode-star{font-size:14px}.platform-host{gap:8px;padding:7px 10px}.platform-owl{font-size:34px}.platform-clue small{font-size:7px;letter-spacing:.5px}.platform-clue b{font-size:17px}.platform-clue [role=img]{font-size:30px}.platform-clue>div{gap:6px}.platform-countdown{font-size:14px}.platform-control-hint{display:none}.platform-controls{padding:9px 12px}.platform-intro ol{font-size:13px}.platform-intro-art{font-size:46px;margin-bottom:10px}}
-@media(prefers-reduced-motion:reduce){.platform-waves,.platform-sparkles,.platform-owl,.platform-intro-art span,.is-walking .explorer-body,.platform-scene.is-urgent .word-platform{animation:none}.word-platform{transition:opacity .15s}.word-platform.is-sunk{transform:none}.platform-splash.is-active{animation:none;opacity:1}.is-jumping .explorer-body{transform:none}}
+@media(prefers-reduced-motion:reduce){.platform-waves,.platform-sparkles,.platform-owl,.platform-intro-art span,.platform-scene.is-urgent .word-platform{animation:none}.word-platform{transition:opacity .15s}.word-platform.is-sunk{transform:none}.platform-splash.is-active{animation:none;opacity:1}}
 @media(max-height:750px){
  .screen-overlay:has(.platform-game){padding-top:12px;padding-bottom:12px}
  .screen-overlay:has(.platform-game)>header{margin-bottom:6px}
@@ -308,8 +307,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .platform-caustics{animation:salta-caustics 8s ease-in-out infinite alternate;pointer-events:none}.platform-sunbeams{animation:salta-rays 7s ease-in-out infinite alternate;transform-origin:450px 0;pointer-events:none}.platform-fish-school{animation:salta-fish 12s ease-in-out infinite alternate;pointer-events:none}.platform-bubbles circle{animation:salta-bubble 4s ease-in-out infinite;animation-delay:calc(var(--bubble)*-.7s)}
 .platform-wake{opacity:.35;transition:opacity .3s,ry .5s}.platform-wake.is-disturbed{opacity:.8;ry:55px;stroke-dasharray:20 8}
 .word-platform{transform:translateY(0);transition:transform .65s cubic-bezier(.5,0,.8,.3),opacity .65s,filter .2s;cursor:pointer}.word-platform.is-sunk{transform:translateY(76px) scale(.85);opacity:0}.word-platform.is-standing .platform-top{stroke:#fffce7;stroke-width:5;filter:drop-shadow(0 0 5px #fff5b4)}.word-platform.is-inspected:not(.is-sunk){filter:brightness(1.1)}.platform-tile-glint{opacity:0;transition:opacity .2s}.is-standing .platform-tile-glint,.is-inspected .platform-tile-glint{opacity:1}.word-platform.is-safe .platform-top{stroke:#fff1a1;filter:drop-shadow(0 0 8px #fff1a1)}
-.platform-player{filter:drop-shadow(0 3px 1px #31515a25)}.explorer-body{transform-origin:0 -15px;transform:rotate(var(--lean,0deg))}.is-walking .explorer-body{animation:salta-run .23s ease-in-out infinite alternate}.explorer-leg{transform-origin:0 -19px}.explorer-arm{transform-origin:0 -35px}.is-walking .explorer-leg-left{animation:salta-step .24s ease-in-out infinite alternate}.is-walking .explorer-leg-right{animation:salta-step .24s ease-in-out infinite alternate-reverse}.is-walking .explorer-arm-left{animation:salta-arm .24s ease-in-out infinite alternate-reverse}.is-walking .explorer-arm-right{animation:salta-arm .24s ease-in-out infinite alternate}.explorer-scarf{transform-origin:10px -39px;animation:salta-scarf .9s ease-in-out infinite alternate}
-.is-jumping .explorer-body{animation:none;transform:rotate(-6deg) scale(.96,1.06)}.is-jumping .explorer-arm-left{animation:none;transform:rotate(70deg)}.is-jumping .explorer-arm-right{animation:none;transform:rotate(-65deg)}.is-jumping .explorer-leg-left{animation:none;transform:rotate(18deg)}.is-jumping .explorer-leg-right{animation:none;transform:rotate(-22deg)}
+.platform-player{filter:drop-shadow(0 3px 1px #31515a25)}
 .platform-celebration{opacity:0;pointer-events:none;fill:none;stroke:#fff2a9;stroke-width:3}.platform-celebration.is-active{opacity:1}.platform-celebration.is-active ellipse{transform-origin:0 0;animation:salta-rescue .75s ease-out both}.platform-celebration.is-active ellipse:nth-child(2){animation-delay:.12s}.platform-celebration path{stroke-width:7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 1px #347576)}
 .platform-jump{position:relative;overflow:hidden;transition:transform .12s,box-shadow .12s,filter .2s}.platform-jump::after{content:'';position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,#fff8dc70 48%,transparent 65%);transform:translateX(-100%);pointer-events:none}.platform-jump:hover::after{transform:translateX(100%);transition:transform .6s}.platform-jump.is-recharging{filter:saturate(.65);box-shadow:0 2px 0 #c9984e;transform:translateY(3px)}.platform-dpad button{transition:transform .1s,box-shadow .1s,background .1s}.platform-controls button:focus-visible{outline:3px solid #267d83;outline-offset:3px}.platform-controls button.is-held{background:#a8dbc6;transform:translateY(3px);box-shadow:0 0 0 2px #f8f5ce}
 .platform-game:has([data-phase=success]) .platform-host{border-color:#d1bd68;background:linear-gradient(110deg,#fff3bb,#eff7d7)}.platform-game:has([data-phase=fall]) .platform-host{border-color:#e0bbb0}.platform-game:has(.is-urgent) .platform-time-fill{background:linear-gradient(90deg,#e89b64,#e65e57)}
@@ -317,9 +315,6 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 @keyframes salta-rays{to{opacity:.22;transform:skewX(-8deg)}}
 @keyframes salta-fish{to{transform:translate(20px,12px)}}
 @keyframes salta-bubble{0%,100%{transform:translateY(5px);opacity:.2}50%{transform:translateY(-12px);opacity:.8}}
-@keyframes salta-step{from{transform:rotate(-17deg)}to{transform:rotate(17deg)}}
-@keyframes salta-arm{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
-@keyframes salta-scarf{to{transform:rotate(10deg)}}
 @keyframes salta-owl-breathe{50%{transform:translateY(-2px) rotate(2deg)}}
 @keyframes salta-blink{0%,43%,47%,100%{transform:scaleY(1)}45%{transform:scaleY(.08)}}
 @keyframes salta-wing-left{to{transform:rotate(65deg)}}
@@ -329,8 +324,8 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 @media(max-width:600px){.platform-owl{width:44px;height:50px}.platform-owl svg{width:43px;height:43px}.platform-owl span{font-size:7px}.platform-intro-art>span{width:90px;height:90px}.platform-intro-art svg{width:80px;height:80px}}
 @media(max-height:750px){.platform-owl{height:48px;width:44px}.platform-owl svg{width:42px;height:42px}.platform-owl span{font-size:7px}}
 .platform-game.is-paused *{animation-play-state:paused!important}
-.platform-game.is-calm *,.platform-game.is-calm .word-platform,[data-calm=true] .platform-intro *{animation:none!important;transition:none!important}.platform-game.is-calm .word-platform.is-sunk{transform:none}.platform-game.is-calm .explorer-body,.platform-game.is-calm .explorer-leg,.platform-game.is-calm .explorer-arm{transform:none}.platform-game.is-calm .platform-splash.is-active{opacity:1}
-@media(prefers-reduced-motion:reduce){.platform-game *,.platform-intro *{animation:none!important;transition:none!important}.platform-game .explorer-body,.platform-game .explorer-leg,.platform-game .explorer-arm{transform:none}}
+.platform-game.is-calm *,.platform-game.is-calm .word-platform,[data-calm=true] .platform-intro *{animation:none!important;transition:none!important}.platform-game.is-calm .word-platform.is-sunk{transform:none}.platform-game.is-calm .platform-splash.is-active{opacity:1}
+@media(prefers-reduced-motion:reduce){.platform-game *,.platform-intro *{animation:none!important;transition:none!important}}
 @media(min-width:701px){.platform-scene{max-width:494px;justify-self:center}}
 @media(max-width:700px) and (max-height:750px){.platform-scene{max-width:310px;margin-inline:auto}}
 /* Salta controls: jump / playfield / analog joystick, in the same row. */
@@ -798,10 +793,6 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 @media(max-width:700px){.platform-stage{padding-top:136px}.platform-stage .platform-owl{top:6px;width:70px;height:70px}.platform-stage .platform-host.scene-clue{top:81px;padding:8px 15px;min-width:160px}.platform-stage .platform-clue b{font-size:20px}.platform-stage .platform-clue [role=img]{font-size:30px}.platform-stage .platform-timing{width:108px;right:8px;top:11px;padding:7px 6px 9px;border-radius:15px}.platform-stage .platform-countdown{font-size:18px}.platform-timer-label{font-size:8px}.platform-stage .platform-score{left:8px;top:21px;font-size:15px;padding:9px}.platform-play-area .platform-scene{height:clamp(260px,65vw,390px)}}
 @media(prefers-reduced-motion:reduce){.platform-stage .platform-timing,.platform-stage .platform-host,.platform-stage .owl-beak,.platform-stage .owl-body{animation:none!important}}
 
-.explorer-hair{transform-origin:0 -64px}.is-walking .explorer-hair{animation:salta-hair .48s ease-in-out infinite alternate}.is-jumping .explorer-hair{animation:none;transform:rotate(5deg)}
-@keyframes salta-hair{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
-@media(prefers-reduced-motion:reduce){.explorer-hair{animation:none!important;transform:none!important}}
-
 /* Anticipation, shoulder-led swing, wrist follow-through and recovery share the 800 ms reaction. */
 @keyframes captain-strike{0%{transform:rotate(0);animation-timing-function:ease-out}28%{transform:rotate(-28deg);animation-timing-function:cubic-bezier(.7,0,.9,.4)}51%{transform:rotate(26deg);animation-timing-function:ease-out}65%{transform:rotate(32deg)}100%{transform:rotate(9deg)}}
 @keyframes captain-wrist{0%{transform:rotate(5deg);animation-timing-function:ease-out}29%{transform:rotate(32deg);animation-timing-function:cubic-bezier(.75,0,.8,.3)}54%{transform:rotate(-125deg);animation-timing-function:ease-out}68%{transform:rotate(-132deg)}100%{transform:rotate(-55deg)}}
@@ -834,45 +825,6 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 
 @media(min-width:900px){.lesson-modes{grid-template-columns:repeat(5,minmax(0,1fr))}}
 
-/* Salta: carved floating stone, water response, and a more expressive explorer. */
-.word-platform{transform-box:view-box;transform-origin:0 0;transition:transform .8s cubic-bezier(.22,.75,.2,1),opacity .7s,filter .2s}
-.word-platform.is-sunk{transform:translateY(68px) scale(.94,.9);opacity:0;transition-timing-function:cubic-bezier(.45,.05,.65,.5)}
-.platform-waterline{pointer-events:none;animation:salta-waterline 3.8s ease-in-out infinite}
-.platform-player .explorer-body{animation:salta-girl-breathe 3.2s ease-in-out infinite;transform-origin:0 -12px}
-.explorer-head{transform-origin:0 -40px;animation:salta-girl-look 5.6s ease-in-out infinite}
-.explorer-eyes{transform-origin:0 -53px;animation:salta-girl-blink 4.7s infinite}
-.explorer-hair{transform-origin:0 -67px;animation:salta-girl-hair 3.2s ease-in-out infinite}
-.explorer-arm-left{transform-origin:-16px -36px}.explorer-arm-right{transform-origin:16px -36px}
-.explorer-leg-left{transform-origin:-9px -18px}.explorer-leg-right{transform-origin:9px -18px}
-.platform-player:not(.is-walking):not(.is-jumping):not(.is-celebrating):not(.is-falling) .explorer-arm{animation:salta-girl-rest 3.2s ease-in-out infinite alternate}
-.platform-player.is-walking .explorer-body{animation:salta-girl-run var(--stride-duration,.22s) ease-in-out infinite alternate}
-.platform-player.is-walking .explorer-leg{animation-name:salta-girl-step;animation-duration:var(--stride-duration,.22s)}
-.platform-player.is-walking .explorer-arm{animation-duration:var(--stride-duration,.22s)}
-.platform-player.is-walking .explorer-head{animation:salta-girl-nod .44s ease-in-out infinite alternate}
-.platform-player.is-jumping .explorer-body{animation:salta-girl-jump .65s ease-in-out both}
-.platform-player.is-jumping .explorer-head{animation:none;transform:rotate(-3deg)}
-.platform-player.is-jumping .explorer-hair{animation:salta-girl-hair-jump .65s ease-in-out both}
-.platform-player.is-celebrating .explorer-body{animation:salta-girl-happy .38s ease-in-out infinite alternate}
-.platform-player.is-celebrating .explorer-arm-left{animation:none;transform:rotate(145deg)}
-.platform-player.is-celebrating .explorer-arm-right{animation:none;transform:rotate(-145deg)}
-.platform-player.is-falling .explorer-body{animation:none;transform:rotate(-9deg)}
-.platform-player.is-falling .explorer-arm-left{animation:salta-girl-flail .15s ease-in-out infinite alternate}
-.platform-player.is-falling .explorer-arm-right{animation:salta-girl-flail .15s ease-in-out infinite alternate-reverse}
-.platform-player.is-falling .explorer-smile{transform:scaleY(1.7);transform-origin:0 -45px}
-@keyframes salta-waterline{50%{opacity:.28;transform:translateY(2px)}}
-@keyframes salta-girl-breathe{50%{transform:translateY(-.7px) scale(1.01,1.015)}}
-@keyframes salta-girl-look{0%,35%,100%{transform:rotate(0)}50%,70%{transform:rotate(3deg)}}
-@keyframes salta-girl-blink{0%,40%,44%,100%{transform:scaleY(1)}42%{transform:scaleY(.08)}}
-@keyframes salta-girl-hair{50%{transform:rotate(1.6deg)}}
-@keyframes salta-girl-rest{to{transform:rotate(4deg)}}
-@keyframes salta-girl-run{from{transform:rotate(-2deg) translateY(.4px)}to{transform:rotate(2deg) translateY(-.4px)}}
-@keyframes salta-girl-step{from{transform:rotate(-19deg) translateY(-1.2px)}to{transform:rotate(19deg) translateY(1px)}}
-@keyframes salta-girl-nod{to{transform:rotate(-2deg) translateY(.5px)}}
-@keyframes salta-girl-jump{0%{transform:scale(1.06,.94)}25%{transform:rotate(-5deg) scale(.96,1.06)}70%{transform:rotate(3deg) scale(1,1.02)}100%{transform:none}}
-@keyframes salta-girl-hair-jump{0%,100%{transform:rotate(0)}35%{transform:rotate(8deg)}70%{transform:rotate(-4deg)}}
-@keyframes salta-girl-happy{to{transform:translateY(-3px) rotate(3deg)}}
-@keyframes salta-girl-flail{from{transform:rotate(-45deg)}to{transform:rotate(45deg)}}
-.platform-game.is-calm .explorer-head,.platform-game.is-calm .explorer-hair,.platform-game.is-calm .explorer-eyes{transform:none!important}
 .voyage-sun-rays{inset:auto;width:240vmax;height:240vmax;translate:-50% -50%;transform-origin:center}
 
 /* A golden reward card for the always-available memory bonus. */
@@ -897,3 +849,57 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 @media(prefers-reduced-motion:reduce){.screen-overlay[data-island-room] .lesson-modes button[data-mode="memory"]::before,.screen-overlay[data-island-room] .lesson-modes button[data-mode="memory"]::after,.bonus-coin{animation:none}.screen-overlay[data-island-room] .lesson-modes button[data-mode="memory"]{transition:none}}
 .bonus-amount>span:first-child{display:block}
 .bonus-amount>span:last-child{display:inline}
+.island-coin-bonus{display:inline-flex;align-items:center;vertical-align:middle;margin-left:5px;padding:3px 7px;border:1px solid #e4b457;border-radius:10px;background:linear-gradient(145deg,#fff5c4,#ffdc83);color:#865321;font-size:13px;font-weight:850;line-height:1.2;white-space:nowrap}
+@media(max-width:420px){.island-coin-bonus{font-size:11px;margin-left:2px;padding:2px 5px}}
+
+
+/* Salta: bright toy-like surfaces, translucent water and clock-driven character joints. */
+.platform-stage{border:3px solid #b7f3df;border-radius:29px;background:linear-gradient(145deg,#66ddd7,#219cb8);box-shadow:0 7px 0 #247f9225,0 13px 26px #226c8020,inset 0 2px 0 #e4fff3;padding-top:126px;isolation:isolate}
+.platform-play-area .platform-scene{height:clamp(290px,calc(100dvh - 400px),460px)}
+.platform-stage .platform-water-backdrop{border-radius:26px}
+.platform-stage .platform-host.scene-clue{border-color:#ffde95;background:linear-gradient(150deg,#fffef0,#fff0c4);box-shadow:0 4px 0 #e8be6870,0 8px 18px #20779022}
+.platform-stage .platform-score{background:linear-gradient(145deg,#fff1a9,#ffc75e);border-color:#fffbdd;color:#8d571e}
+.platform-stage .platform-timing{border-color:#f5ffeb;box-shadow:0 4px 0 #167b9326,0 8px 20px #177f9220}
+.platform-stage .platform-time-fill{background:linear-gradient(90deg,#47bbaa,#89d773,#ffe28b);border-radius:inherit}
+.platform-player{filter:drop-shadow(0 2px 1.5px #204e6730)}
+.word-platform{transform-box:view-box;transform-origin:0 0;transition:transform .8s cubic-bezier(.2,.7,.2,1),opacity .7s,filter .2s}
+.word-platform.is-sunk{transform:translateY(76px) scale(.96,.9);opacity:0;transition-timing-function:cubic-bezier(.42,.05,.65,.5)}
+.word-platform.is-standing .platform-top{stroke:#fffde9;stroke-width:4;filter:none}
+.word-platform.is-safe .platform-top{stroke:#fff6ad;stroke-width:5;filter:drop-shadow(0 0 4px #fff2a7a0)}
+.platform-word{stroke:#fffbed;stroke-width:1.5px;letter-spacing:-.4px}
+.platform-scene.is-urgent .word-platform:not(.is-sunk){animation:none}
+.platform-scene.is-urgent .word-platform:not(.is-sunk) .platform-top{stroke:#fff6c7;stroke-width:4}
+.platform-wake{opacity:.48;transition:opacity .3s;stroke-dasharray:56 9 26 11;stroke-linecap:round}
+.platform-wake.is-disturbed{opacity:.8;stroke-dasharray:22 10;ry:55px}
+.platform-waterline{animation:salta-waterline 3.8s ease-in-out infinite;pointer-events:none}
+.platform-weight-ripple{pointer-events:none}
+.platform-surface-sheen{animation:salta-surface-shine 6s ease-in-out infinite;animation-delay:var(--tile-delay)}
+.platform-water-glint{animation:salta-water-glint 3.8s ease-in-out infinite;animation-delay:var(--glint-delay)}
+.platform-caustics{animation:salta-caustics 9s ease-in-out infinite alternate;transform-origin:center}
+.platform-caustics-far{animation:salta-caustics-far 13s ease-in-out infinite alternate;transform-origin:center}
+.platform-current{animation:salta-current 7s ease-in-out infinite alternate;pointer-events:none}
+.platform-kelp{animation:salta-kelp 5s ease-in-out infinite alternate;transform-origin:300px 425px}
+.platform-play-area .platform-jump{border:3px solid #fff2c1;background:linear-gradient(150deg,#ffeaa2,#ffc754 70%,#f9b249);color:#875124;box-shadow:0 5px 0 #b77939,0 9px 16px #146f9140,inset 0 2px 0 #fff8d2}
+.platform-joystick{border:3px solid #defeef;background:radial-gradient(circle,#64cbbb 0 39%,#b5edcf 40% 56%,#f0ffe2 57% 60%,#8bd9c5 61%);box-shadow:0 5px 0 #298e91,0 8px 16px #12688840,inset 0 2px 2px #fff9}
+.platform-joystick-thumb{border-color:#e7fff6;background:radial-gradient(circle at 32% 22%,#d1fff0,#64cfbf 54%,#269b9f);box-shadow:0 4px 0 #298a92,0 6px 10px #266b8a30,inset 0 2px 2px #ffffffa0}
+@keyframes salta-waterline{50%{opacity:.32;transform:translateY(1.5px)}}
+@keyframes salta-surface-shine{0%,48%{transform:translateX(0)}83%,100%{transform:translateX(310px)}}
+@keyframes salta-water-glint{0%,100%{opacity:.15}48%{opacity:.9}68%{opacity:.4}}
+@keyframes salta-caustics-far{from{transform:translate(-20px,-10px) scale(1.06);opacity:.18}to{transform:translate(10px,12px) scale(1.02);opacity:.35}}
+@keyframes salta-current{from{transform:translate(-7px,0)}to{transform:translate(9px,5px)}}
+@keyframes salta-kelp{to{transform:skewX(2deg)}}
+@media(max-width:700px){.platform-stage{padding-top:126px;border-radius:24px}.platform-play-area .platform-scene{height:clamp(260px,65vw,390px)}.platform-play-area .platform-jump{border-width:2px}.platform-joystick{border-width:2px}}
+@media(max-width:700px) and (max-height:740px){
+ .screen-overlay:has(.platform-game) .lesson-modes button{min-height:46px;padding-block:5px}
+ .platform-stage{padding-top:94px;padding-bottom:56px}
+ .platform-play-area .platform-scene{height:clamp(200px,59vw,240px)}
+ .platform-stage .platform-owl{top:3px;width:48px;height:48px}
+ .platform-stage .platform-host.scene-clue{top:52px;min-width:135px;padding:6px 12px;border-radius:16px}
+ .platform-stage .platform-clue b{font-size:17px}.platform-stage .platform-clue [role=img]{font-size:25px}
+ .platform-stage .platform-timing{top:7px;width:95px;padding:6px}.platform-stage .platform-countdown{font-size:15px}
+ .platform-stage .platform-score{top:9px;font-size:13px;padding:8px}
+ .platform-play-area .platform-controls{padding-bottom:9px;gap:5px}
+}
+.platform-game.is-calm .platform-surface-sheen,.platform-game.is-calm .platform-water-glints{opacity:.35}
+.platform-game.is-calm .word-platform.is-sunk{transform:none}
+@media(prefers-reduced-motion:reduce){.platform-game .word-platform.is-sunk{transform:none}}

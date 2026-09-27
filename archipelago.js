@@ -4,11 +4,11 @@ const islandRoutePositions=[
  [[1900,650],[2800,400],[3800,800],[4950,420],[5850,1100],[5250,1800],[4100,1500],[3150,2100],[2150,1650]],
  [[1650,2500],[2450,3000],[3350,2650],[4450,3000],[5550,2600],[5900,3500],[4850,3950],[3700,3500],[2650,3950]]
 ];
-const islandRoutes=[{name:'Ruta del Sol',color:'#ffe08a',islands:[3,4,5,6,7,8,9,10,11]},{name:'Ruta de la Aventura',color:'#b9dcff',islands:[12,13,14,15,16,17,18,19,20]}];
+const islandRoutes=[{name:'Ruta del Sol',color:'#ffe08a',extraStars:0,islands:[3,4,5,6,7,8,9,10,11]},{name:'Ruta de la Aventura',color:'#b9dcff',extraStars:4,islands:[12,13,14,15,16,17,18,19,20]}];
 const LUCERO_ROUTES_KEY='ximena-lucero-routes-v1';
 function readLuceroRoutes(){try{const value=JSON.parse(localStorage.getItem(LUCERO_ROUTES_KEY)||'[]');return Array.isArray(value)?[...new Set(value.filter(id=>id===0||id===1))]:[];}catch{return [];}}
 let luceroOpenRoutes=readLuceroRoutes(),luceroUnlocking=null,luceroGateMessage='';
-function luceroRequirement(route){const position=luceroOpenRoutes.indexOf(route);return position===0||luceroOpenRoutes.length===0?24:60;}
+function luceroRequirement(route){const position=luceroOpenRoutes.indexOf(route);return (position===0||luceroOpenRoutes.length===0?24:60)+islandRoutes[route].extraStars;}
 function luceroRouteClosed(island){return island.routeIndex!==undefined&&!luceroOpenRoutes.includes(island.routeIndex);}
 function luceroLockArt(){return '<svg viewBox="0 0 100 110" aria-hidden="true"><path class="lucero-shackle" d="M26 48V29a24 24 0 0 1 48 0v19" fill="none" stroke="#ffe5a1" stroke-width="12" stroke-linecap="round"/><rect x="12" y="43" width="76" height="60" rx="17" fill="#efbe62" stroke="#fff2bf" stroke-width="4"/><path d="m50 54 6 12 13 2-10 9 3 14-12-7-12 7 3-14-10-9 13-2Z" fill="#91662d"/></svg>';}
 function luceroMapGate(){return `<button class="lucero-map-gate ${luceroOpenRoutes.length===2?'is-open':''}" style="left:1360px;top:1290px" data-action="route-gate" aria-label="Candado de Faro Lucero. Elegir camino">${luceroLockArt()}<b>FARO LUCERO</b><small>${islandRoutes.map((_,i)=>`<span>${i===0?'↗':'↘'} ${luceroOpenRoutes.includes(i)?'✓':`★ ${luceroRequirement(i)}`}</span>`).join('')}</small></button>`;}

@@ -4,6 +4,26 @@ const REQUIRED_ISLAND_GAMES=['find','connect'];
 const MAIN_GAMES_PER_ISLAND=4,COMPLETION_COINS=40,MEMORY_COMPLETION_COINS=200;
 let islandLineupSaved=true;
 const islandGameLineups=readIslandGameLineups();
+const ISLAND_COIN_BONUS_KEY='ximena-island-coin-bonus-v1';
+const islandCoinBonuses=readIslandCoinBonuses();
+function readIslandCoinBonuses(){
+ let stored={};try{stored=JSON.parse(localStorage.getItem(ISLAND_COIN_BONUS_KEY)||'{}')||{};}catch{}
+ const bonuses={};let changed=false;
+ // One fixed winner per group; the final partial group also gets one winner.
+ for(let first=2;first<islandLessons.length;first+=4){
+  const count=Math.min(4,islandLessons.length-first),saved=stored[first];
+  const valid=Number.isInteger(saved)&&saved>=first&&saved<first+count;
+  bonuses[first]=valid?saved:first+Math.floor(Math.random()*count);
+  if(!valid)changed=true;
+ }
+ if(changed){try{localStorage.setItem(ISLAND_COIN_BONUS_KEY,JSON.stringify(bonuses));}catch{}}
+ return bonuses;
+}
+function islandCoinMultiplier(index){
+ if(index===0||index===1)return 2;
+ return islandCoinBonuses[2+Math.floor((index-2)/4)*4]===index?2:1;
+}
+function islandCoinBadge(index){return islandCoinMultiplier(index)===2?'<span class="island-coin-bonus" title="Monedas dobles en todos los juegos de esta isla" aria-label="Monedas dobles en todos los juegos de esta isla">🪙 ×2</span>':'';}
 function readIslandGameLineups(){
  const candidates=Object.keys(gameModes).filter(mode=>mode!=='memory'&&!REQUIRED_ISLAND_GAMES.includes(mode));
  let stored={};try{stored=JSON.parse(localStorage.getItem(ISLAND_LINEUP_KEY)||'{}')||{};}catch{}
@@ -89,7 +109,7 @@ function memoryReward(round){
 }
 function coinRewardView(round){
  if(!round.isNewBest)return '';
- return `<div class="coin-reward" role="status">${goldCoinIcon()}<div><strong>+${round.coins} monedas</strong></div></div>`;
+ return `<div class="coin-reward" role="status">${goldCoinIcon()}<div><strong>+${round.coins} monedas</strong>${round.coinMultiplier===2?'<small>¡Recompensa doble de esta isla!</small>':''}</div></div>`;
 }
 // Reset the existing save once for the requested fresh start; future rewards persist.
 try {
@@ -121,7 +141,7 @@ luceroOpenRoutes=readLuceroRoutes();
 function shuffle(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
 function reshuffle(items){const result=shuffle(items);return result.every((id,i)=>id===items[i])?[...items.slice(1),items[0]]:result;}
 function modeStars(index,mode){
- if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS} <span>monedas!</span></span></span></span>`;
+ if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS*islandCoinMultiplier(index)} <span>monedas!</span></span></span></span>`;
  const count=islandProgress[`${index}-${mode}`]||0;
  return `<span class="mode-stars" role="img" aria-label="${count} de 3 estrellas">${[1,2,3].map(n=>`<span class="mode-star ${n<=count?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</span>`;
 }
@@ -166,7 +186,7 @@ function clearConnectDrag(){
  drag?.preview?.remove();
  if(drag?.button.hasPointerCapture(drag.pointerId))drag.button.releasePointerCapture(drag.pointerId);
 }
-const ARCHERY_WINDOW_MS=5000;
+const ARCHERY_WINDOW_MS=6000;
 function beginArchery(){
  const round=adventure;
  if(screen!=='adventure'||round?.mode!=='archery'||round.archeryStarted||round.done)return;
@@ -411,6 +431,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  adventure={index,mode,step:0,attempt:0,mistakes:0,turns:0,streak:0,matched:[],picks:[],notice:'',wrong:[],checked:false,pending:false,done:false,memorySeen:[],memoryMisses:[],memoryRecallHits:0,memoryRecallErrors:0,memoryWords,target:mode==='memory'?memoryWords.length:mode==='connect'?connectWords.length:wordIds.length,order:shuffle(wordIds),left:shuffle(gameWords),right:shuffle(gameWords),deck:shuffle(Array.from({length:memoryWords.length*2},(_,id)=>({id,word:memoryWords[id%memoryWords.length],english:id<memoryWords.length})))};
  screen='adventure';
  adventure.developerAccess=developerAccess;
+ adventure.coinMultiplier=islandCoinMultiplier(index);
  adventure.startedAt=performance.now();adventure.pausedMs=0;adventure.pausedAt=document.hidden?adventure.startedAt:null;
  if(mode==='archery'){adventure.archeryStarted=false;return;}
  if(mode==='platforms'){adventure.platformStarted=false;return;}
@@ -423,7 +444,7 @@ function finishAdventure(){
  a.durationMs=Math.round(elapsedGameMs(a));stopGameClock();
  recordCompletion(a);
  const reward=a.mode==='memory'?memoryReward(a):coinReward(a.mode,a.target,Math.floor(a.durationMs/1000));
- a.coins=a.isNewBest?reward:0;
+ a.coins=a.isNewBest?reward*a.coinMultiplier:0;
  a.coinsSaved=a.coins>0?awardCoins(a.coins):true;
  if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
  const wasComplete=islandComplete(a.index);
@@ -561,7 +582,7 @@ function adventureView(){
  }else{
   content=a.mode==='blaster'?blasterView(a):a.mode==='pirate'?pirateView(a,lesson):a.mode==='platforms'?platformView(a,lesson):a.mode==='archery'?archeryView(a,lesson):memoryView(a,lesson);
  }
- return `${header(name,lesson.topic)}<section class="island-game"><ol class="lesson-modes" aria-label="Juegos de la isla">${islandModes(a.index).map(mode=>[mode,gameModes[mode]]).map(([mode,label])=>`<li><button class="lesson-mode" data-play="mode" data-mode="${mode}" aria-pressed="${a.mode===mode}" ${isGameUnlocked(a.index,mode,a.developerAccess)?'':'disabled'}><span>${mode==='memory'?'':`${progressionModes(a.index).indexOf(mode)+1}. `}${label}${isGameUnlocked(a.index,mode,a.developerAccess)?'':' <span aria-label="Bloqueado">🔒</span>'}</span>${modeStars(a.index,mode)}</button></li>`).join('')}</ol>${islandLineupSaved?'':'<p role="status">No se pudo guardar el sorteo. Permite el almacenamiento para conservar los juegos al volver.</p>'}${!a.done&&a.mode!=='blaster'&&(a.mode!=='archery'||a.archeryStarted)&&(a.mode!=='platforms'||a.platformStarted)&&(a.mode!=='pirate'||a.pirateStarted)?`${lessonStatusView(a,count)}<div class="lesson-track" role="progressbar" aria-label="Progreso del juego" aria-valuemin="0" aria-valuemax="${a.target}" aria-valuenow="${count}"><span style="width:${count/a.target*100}%"></span>${Array.from({length:a.target},(_,i)=>i+1).map(n=>`<i class="${count>=n?'is-filled':''}" aria-hidden="true">${count>=n?(a.mode==='memory'?'✓':'★'):'·'}</i>`).join('')}</div>`:''}${content}<span class="game-announcement" role="status" aria-live="polite" aria-atomic="true">${a.notice}</span></section>`;
+ return `${header(`${name} ${islandCoinBadge(a.index)}`,lesson.topic)}<section class="island-game"><ol class="lesson-modes" aria-label="Juegos de la isla">${islandModes(a.index).map(mode=>[mode,gameModes[mode]]).map(([mode,label])=>`<li><button class="lesson-mode" data-play="mode" data-mode="${mode}" aria-pressed="${a.mode===mode}" ${isGameUnlocked(a.index,mode,a.developerAccess)?'':'disabled'}><span>${mode==='memory'?'':`${progressionModes(a.index).indexOf(mode)+1}. `}${label}${isGameUnlocked(a.index,mode,a.developerAccess)?'':' <span aria-label="Bloqueado">🔒</span>'}</span>${modeStars(a.index,mode)}</button></li>`).join('')}</ol>${islandLineupSaved?'':'<p role="status">No se pudo guardar el sorteo. Permite el almacenamiento para conservar los juegos al volver.</p>'}${!a.done&&a.mode!=='blaster'&&(a.mode!=='archery'||a.archeryStarted)&&(a.mode!=='platforms'||a.platformStarted)&&(a.mode!=='pirate'||a.pirateStarted)?`${lessonStatusView(a,count)}<div class="lesson-track" role="progressbar" aria-label="Progreso del juego" aria-valuemin="0" aria-valuemax="${a.target}" aria-valuenow="${count}"><span style="width:${count/a.target*100}%"></span>${Array.from({length:a.target},(_,i)=>i+1).map(n=>`<i class="${count>=n?'is-filled':''}" aria-hidden="true">${count>=n?(a.mode==='memory'?'✓':'★'):'·'}</i>`).join('')}</div>`:''}${content}<span class="game-announcement" role="status" aria-live="polite" aria-atomic="true">${a.notice}</span></section>`;
 }
 function handleAdventure(button){
  const a=adventure,action=button.dataset.play,id=Number(button.dataset.id);if(!a||button.disabled)return;
