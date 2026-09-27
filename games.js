@@ -108,19 +108,9 @@ function memoryReward(round){
  return MEMORY_COMPLETION_COINS+round.memoryBonus+round.speedBonus;
 }
 function coinRewardView(round){
- if(!round.isNewBest)return '';
+ if(!round.coins)return '';
  return `<div class="coin-reward" role="status">${goldCoinIcon()}<div><strong>+${round.coins} monedas</strong>${round.coinMultiplier===2?'<small>¡Recompensa doble de esta isla!</small>':''}</div></div>`;
 }
-// Reset the existing save once for the requested fresh start; future rewards persist.
-try {
- const resetKey='ximena-progress-reset',resetVersion='2026-09-23-full-fresh-start';
- if(localStorage.getItem(resetKey)!==resetVersion){
-  const keys=Object.keys(localStorage).filter(key=>key==='ximena-islands-v1'||key===COIN_STORAGE_KEY||key===BEST_TIMES_KEY||key===LUCERO_ROUTES_KEY||key.startsWith(ROOM_PRIZE_PREFIX)||key.startsWith(ROOM_DECOY_PREFIX));
-  for(const key of keys)localStorage.removeItem(key);
-  coinBalance=0;
-  localStorage.setItem(resetKey,resetVersion);
- }
-} catch {}
 try {const stored=JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=value;} catch {}
 function readBestTimes(){
  const records={};
@@ -128,6 +118,11 @@ function readBestTimes(){
  return records;
 }
 bestTimes=readBestTimes();
+function memoryBonusCompleted(index){
+ // Existing records also identify bonuses completed before this update.
+ const key=`${index}-memory`;
+ return (bestTimes[key]??readBestTimes()[key])!==undefined;
+}
 function recordCompletion(round){
  bestTimes={...bestTimes,...readBestTimes()};
  const key=`${round.index}-${round.mode}`;
@@ -141,6 +136,7 @@ luceroOpenRoutes=readLuceroRoutes();
 function shuffle(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
 function reshuffle(items){const result=shuffle(items);return result.every((id,i)=>id===items[i])?[...items.slice(1),items[0]]:result;}
 function modeStars(index,mode){
+ if(mode==='memory'&&memoryBonusCompleted(index))return '<span class="bonus-badge">Completado · Jugar sin monedas</span>';
  if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS*islandCoinMultiplier(index)} <span>monedas!</span></span></span></span>`;
  const count=islandProgress[`${index}-${mode}`]||0;
  return `<span class="mode-stars" role="img" aria-label="${count} de 3 estrellas">${[1,2,3].map(n=>`<span class="mode-star ${n<=count?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</span>`;
@@ -170,7 +166,7 @@ function connectLinks(a){return `<svg class="pair-links" viewBox="0 0 100 100" p
 function memoryView(a,lesson){
  const island=oceanIslands[a.index];
  const backArt=`<svg class="memory-island-art" viewBox="-150 -185 300 255" aria-hidden="true"><ellipse cy="43" rx="125" ry="22" fill="var(--room-accent)" opacity=".12"/><ellipse cy="28" rx="115" ry="28" fill="#f5dfb0"/><ellipse cy="23" rx="104" ry="23" fill="${island.color}"/>${islandScenery(island.type)}</svg>`;
- return `<div class="memory-playground"><div class="memory-board">${a.deck.map((card,i)=>{
+ return `${a.memoryReplay?'<p class="memory-replay-notice" role="status">Este bonus ya fue completado en esta isla. Puedes volver a jugar, pero no habrá recompensa ni monedas.</p>':''}<div class="memory-playground"><div class="memory-board">${a.deck.map((card,i)=>{
   const open=a.picks.includes(card.id)||a.matched.includes(card.word),matched=a.matched.includes(card.word);
   return `<button class="memory-card ${open?'is-open':''} ${matched?'is-matched':''} ${a.wrong.includes(card.id)?'is-wrong':''}" style="--deal-index:${i};--pearl-hue:${matched?(155+a.memoryWords.indexOf(card.word)*29)%360:155}" data-play="memory" data-id="${card.id}" ${matched||a.picks.includes(card.id)||a.pending?'disabled':''} aria-label="${open?lesson.words[card.word][card.english?'en':'es']:`Carta ${i+1}, boca abajo`}"><span class="memory-flipper" aria-hidden="true"><span class="memory-face memory-back"><span class="memory-emblem">${backArt}</span><i class="memory-glint">✧</i></span><span class="memory-face memory-front"><b>${lesson.words[card.word][card.english?'en':'es']}</b><span class="memory-stamp">${matched?'✓':a.wrong.includes(card.id)?'×':''}</span></span></span></button>`;
  }).join('')}</div></div>`;
@@ -432,6 +428,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  screen='adventure';
  adventure.developerAccess=developerAccess;
  adventure.coinMultiplier=islandCoinMultiplier(index);
+ adventure.memoryReplay=mode==='memory'&&memoryBonusCompleted(index);
  adventure.startedAt=performance.now();adventure.pausedMs=0;adventure.pausedAt=document.hidden?adventure.startedAt:null;
  if(mode==='archery'){adventure.archeryStarted=false;return;}
  if(mode==='platforms'){adventure.platformStarted=false;return;}
@@ -444,7 +441,9 @@ function finishAdventure(){
  a.durationMs=Math.round(elapsedGameMs(a));stopGameClock();
  recordCompletion(a);
  const reward=a.mode==='memory'?memoryReward(a):coinReward(a.mode,a.target,Math.floor(a.durationMs/1000));
- a.coins=a.isNewBest?reward*a.coinMultiplier:0;
+ if(a.mode==='memory')a.memoryReplay=a.memoryReplay||a.previousBest!==null;
+ const earnsCoins=a.mode==='memory'?!a.memoryReplay:a.isNewBest;
+ a.coins=earnsCoins?reward*a.coinMultiplier:0;
  a.coinsSaved=a.coins>0?awardCoins(a.coins):true;
  if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
  const wasComplete=islandComplete(a.index);
@@ -571,7 +570,7 @@ function adventureView(){
  const count=['find','archery','platforms','pirate','blaster'].includes(a.mode)?a.step:a.matched.length;
  let content='';
  if(a.done&&a.mode==='memory'){
-  content=`<div class="island-result"><div class="lesson-icon">${goldCoinIcon()}</div><h2>¡Bonus completado!</h2>${coinRewardView(a)}${resultActions()}</div>`;
+  content=`<div class="island-result"><div class="lesson-icon">${goldCoinIcon()}</div><h2>¡Bonus completado!</h2>${a.memoryReplay?'<p>Ya habías completado este bonus en esta isla. Esta partida no otorga monedas.</p>':coinRewardView(a)}${resultActions()}</div>`;
  }else if(a.done){
   content=`<div class="island-result"><div class="lesson-icon">${lesson.words[0].icon}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
  }else if(a.mode==='find'){
