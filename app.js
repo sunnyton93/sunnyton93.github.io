@@ -64,7 +64,7 @@ function render(){
  }else{
   root.innerHTML=`<div class="world-app">${islandScreen?'':`<div class="full-map" ${screen!=='map'?'inert':''}>${mapView()}</div><div class="hud-container" ${screen!=='map'?'inert':''}>${gameHud()}</div>`}${overlayMarkup}</div><div id="toast" role="status"></div>`;
  }
- decorateOcean(!keepMap);SoundWorld.sync();syncIslandRoom();
+ decorateOcean(!keepMap);SoundWorld.sync();syncIslandRoom();syncMemoryText();
  if(screen!=='map')document.querySelector('.overlay-close').focus({preventScroll:true});
  else if(previousFocus?.closest('.screen-overlay'))document.querySelector('.map-viewport').focus({preventScroll:true});
 }

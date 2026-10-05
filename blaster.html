@@ -453,7 +453,7 @@
         }
         
         function gameWin() {
-            gameState = 'win';send('win',{score});
+            gameState = 'win';send('win',{score,lives});
             targetPanel.classList.add('hidden');
             winScreen.classList.remove('hidden');
         }

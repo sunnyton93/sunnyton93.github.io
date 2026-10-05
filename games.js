@@ -53,7 +53,15 @@ let islandProgress = {};
 let progressSaved = true;
 const COIN_STORAGE_KEY='ximena-coins-v1';
 const BEST_TIMES_KEY='ximena-best-times-v1';
+const COIN_IMPROVEMENTS_KEY='ximena-coin-improvements-v1';
+const MAX_COIN_IMPROVEMENTS=3;
 let bestTimes={};
+function readCoinImprovements(){
+ const counts={};
+ try{const stored=JSON.parse(localStorage.getItem(COIN_IMPROVEMENTS_KEY)||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=0)counts[key]=Math.min(value,MAX_COIN_IMPROVEMENTS);}catch{}
+ return counts;
+}
+let coinImprovements=readCoinImprovements();
 const COIN_PACE_SECONDS={find:6,connect:8,memory:12,archery:7,platforms:9,pirate:6,blaster:12};
 let gameClockTimer,gameClockActive=false;
 function startGameClock(){gameClockActive=true;clearInterval(gameClockTimer);gameClockTimer=document.hidden?null:setInterval(updateGameClock,100);}
@@ -129,6 +137,12 @@ function recordCompletion(round){
  round.previousBest=bestTimes[key]??null;
  round.isNewBest=round.previousBest===null||round.durationMs<round.previousBest;
  round.bestTime=round.isNewBest?round.durationMs:round.previousBest;
+ round.earnsCoins=round.mode==='memory'?!round.memoryReplay:round.isNewBest&&(round.previousBest===null||(coinImprovements[key]||0)<MAX_COIN_IMPROVEMENTS);
+ round.coinImprovementLimitReached=round.mode!=='memory'&&round.isNewBest&&round.previousBest!==null&&!round.earnsCoins;
+ if(round.earnsCoins&&round.previousBest!==null){
+  coinImprovements[key]=(coinImprovements[key]||0)+1;
+  try{localStorage.setItem(COIN_IMPROVEMENTS_KEY,JSON.stringify(coinImprovements));}catch{}
+ }
  round.recordSaved=true;
  if(round.isNewBest){bestTimes[key]=round.durationMs;try{localStorage.setItem(BEST_TIMES_KEY,JSON.stringify(bestTimes));}catch{round.recordSaved=false;}}
 }
@@ -171,6 +185,36 @@ function memoryView(a,lesson){
   return `<button class="memory-card ${open?'is-open':''} ${matched?'is-matched':''} ${a.wrong.includes(card.id)?'is-wrong':''}" style="--deal-index:${i};--pearl-hue:${matched?(155+a.memoryWords.indexOf(card.word)*29)%360:155}" data-play="memory" data-id="${card.id}" ${matched||a.picks.includes(card.id)||a.pending?'disabled':''} aria-label="${open?lesson.words[card.word][card.english?'en':'es']:`Carta ${i+1}, boca abajo`}"><span class="memory-flipper" aria-hidden="true"><span class="memory-face memory-back"><span class="memory-emblem">${backArt}</span><i class="memory-glint">✧</i></span><span class="memory-face memory-front"><b>${lesson.words[card.word][card.english?'en':'es']}</b><span class="memory-stamp">${matched?'✓':a.wrong.includes(card.id)?'×':''}</span></span></span></button>`;
  }).join('')}</div></div>`;
 }
+let memoryTextBoard=null;
+const memoryTextObserver=new ResizeObserver(()=>fitMemoryText());
+function fitMemoryText(){
+ if(!memoryTextBoard?.isConnected)return;
+ for(const label of memoryTextBoard.querySelectorAll('.memory-front b')){
+  label.style.removeProperty('font-size');
+  const face=label.parentElement,style=getComputedStyle(face);
+  const height=face.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);
+  if(label.clientWidth<=0||height<=0)continue;
+  const fits=()=>label.scrollWidth<=label.clientWidth&&label.offsetHeight<=height;
+  if(fits())continue;
+  // Keep the largest size that fits, wrapping only at word boundaries.
+  let low=1,high=Math.floor(parseFloat(getComputedStyle(label).fontSize)*4);
+  while(low<high){
+   const middle=Math.ceil((low+high)/2);
+   label.style.fontSize=`${middle/4}px`;
+   if(fits())low=middle;else high=middle-1;
+  }
+  label.style.fontSize=`${low/4}px`;
+ }
+}
+function syncMemoryText(){
+ const board=document.querySelector('.memory-board');
+ if(board!==memoryTextBoard){
+  memoryTextObserver.disconnect();memoryTextBoard=board;
+  if(board)memoryTextObserver.observe(board);
+ }
+ fitMemoryText();
+}
+document.fonts?.addEventListener('loadingdone',()=>fitMemoryText());
 let archeryImpactTimer;
 let archeryAnimations=[];
 let archeryAim=null;
@@ -433,7 +477,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  if(mode==='archery'){adventure.archeryStarted=false;return;}
  if(mode==='platforms'){adventure.platformStarted=false;return;}
  if(mode==='pirate'){adventure.pirateStarted=false;return;}
- if(mode==='blaster'){adventure.target=10;adventure.blasterStarted=false;adventure.blasterSession=`blaster-${++blasterSessionCounter}`;return;}
+ if(mode==='blaster'){adventure.target=10;adventure.blasterStarted=false;adventure.blasterLives=3;adventure.blasterSession=`blaster-${++blasterSessionCounter}`;return;}
  startGameClock();
 }
 function finishAdventure(){
@@ -442,13 +486,13 @@ function finishAdventure(){
  recordCompletion(a);
  const reward=a.mode==='memory'?memoryReward(a):coinReward(a.mode,a.target,Math.floor(a.durationMs/1000));
  if(a.mode==='memory')a.memoryReplay=a.memoryReplay||a.previousBest!==null;
- const earnsCoins=a.mode==='memory'?!a.memoryReplay:a.isNewBest;
+ const earnsCoins=a.earnsCoins;
  a.coins=earnsCoins?reward*a.coinMultiplier:0;
  a.coinsSaved=a.coins>0?awardCoins(a.coins):true;
  if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
  const wasComplete=islandComplete(a.index);
  const previousStars=totalStars();
- a.done=true;a.stars=a.mistakes===0?3:a.mistakes<=2?2:1;
+ a.done=true;a.stars=a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=2?2:1;
  const key=`${a.index}-${a.mode}`;islandProgress[key]=Math.max(islandProgress[key]||0,a.stars);
  a.newlyUnlocked=oceanIslands.flatMap((island,index)=>isIslandLocked(island,previousStars)&&!isIslandLocked(island)?[index]:[]);
  try{localStorage.setItem('ximena-islands-v1',JSON.stringify(islandProgress));progressSaved=true;}catch{progressSaved=false;}
@@ -516,6 +560,7 @@ function updateAdventure(){
  patchGameNode(dialog.querySelector(':scope > header'),template.content.querySelector('header'));
  patchGameNode(dialog.querySelector('.island-game'),template.content.querySelector('.island-game'));
  syncIslandRoom();
+ syncMemoryText();
  const audio=dialog.querySelector('.overlay-audio');audio.textContent=muted?'♪ ×':'♪ ✓';audio.setAttribute('aria-label',muted?'Activar sonido':'Silenciar sonido');
  document.querySelectorAll('.hud-stars b').forEach(el=>el.textContent=totalStars());
  document.querySelectorAll('.map-node.is-locked').forEach(node=>{
@@ -572,7 +617,7 @@ function adventureView(){
  if(a.done&&a.mode==='memory'){
   content=`<div class="island-result"><div class="lesson-icon">${goldCoinIcon()}</div><h2>¡Bonus completado!</h2>${a.memoryReplay?'<p>Ya habías completado este bonus en esta isla. Esta partida no otorga monedas.</p>':coinRewardView(a)}${resultActions()}</div>`;
  }else if(a.done){
-  content=`<div class="island-result"><div class="lesson-icon">${lesson.words[0].icon}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
+  content=`<div class="island-result"><div class="lesson-icon">${lesson.words[0].icon}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
  }else if(a.mode==='find'){
   const word=lesson.words[a.order[a.step]];
   content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${w.icon}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
@@ -728,11 +773,11 @@ window.addEventListener('message',event=>{
  if(screen!=='adventure'||a?.mode!=='blaster'||a.done||event.source!==frame?.contentWindow||event.origin!==location.origin||data?.game!=='blaster'||data.session!==a.blasterSession)return;
  if(data.type==='ready'){frame.contentWindow.postMessage({type:'configure',words:islandLessons[a.index].words},location.origin);return;}
  if(data.type==='exit'){screen='map';render();return;}
- if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('tap');return;}
+ if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('tap');return;}
  if(!a.blasterRunning||document.hidden)return;
  if(data.type==='sound'){if(['blaster-laser','blaster-explosion','blaster-crash','wrong'].includes(data.sound))SoundWorld.play(data.sound);}
  else if(data.type==='mistake')a.mistakes++;
  else if(data.type==='progress'&&data.score===a.step+1&&data.score<=a.target)a.step=data.score;
  else if(data.type==='loss'){a.blasterRunning=false;a.pausedAt=performance.now();}
- else if(data.type==='win'&&a.step===a.target){a.blasterRunning=false;finishAdventure();render();}
+ else if(data.type==='win'&&a.step===a.target&&Number.isInteger(data.lives)&&data.lives>=1&&data.lives<=3){a.blasterLives=data.lives;a.blasterRunning=false;finishAdventure();render();}
 });
