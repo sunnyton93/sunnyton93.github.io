@@ -18,6 +18,9 @@ input,textarea,[contenteditable=true]{-webkit-user-select:text;user-select:text}
 .screen-overlay:has(.island-game,.locked-island-panel){padding-top:calc(16px + var(--safe-top));padding-bottom:calc(16px + var(--safe-bottom));padding-left:max(clamp(14px,3vw,40px),var(--safe-left));padding-right:max(clamp(14px,3vw,40px),var(--safe-right));max-height:none}
 .screen-overlay:has(.island-game,.locked-island-panel)>.overlay-close,.screen-overlay:has(.island-game,.locked-island-panel)>.overlay-audio{top:calc(12px + var(--safe-top))}
 #toast{bottom:calc(25px + var(--safe-bottom))}
+.app-update{position:fixed;z-index:10000;left:max(12px,var(--safe-left));right:max(12px,var(--safe-right));bottom:calc(12px + var(--safe-bottom));display:flex;align-items:center;gap:16px;max-width:680px;margin:auto;padding:16px 18px;border:2px solid #91bdaa;border-radius:18px;background:#fffdf0;color:#254f43;box-shadow:0 6px 28px #123b493d;font-size:15px}
+.app-update strong{display:block}.app-update p{margin-top:5px;font-size:13px;line-height:1.45}.app-update button{flex-shrink:0;min-height:44px;padding:10px 16px;border-radius:12px;background:#247c69;color:#fff;font-weight:700}.app-update button:disabled{opacity:.7}
+@media(max-width:600px){.app-update{align-items:stretch;flex-direction:column;gap:10px;padding:12px 14px}.app-update button{width:100%}}
 /* Pause decorative CSS animations while the app is in the background. */
 .app-hidden #app *,.app-hidden #app *::before,.app-hidden #app *::after{animation-play-state:paused!important}
 @media(pointer:coarse){input,textarea,select{font-size:16px}}

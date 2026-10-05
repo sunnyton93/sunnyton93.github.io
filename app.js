@@ -71,7 +71,7 @@ function render(){
 document.addEventListener('keydown',event=>{
  const dialog=document.querySelector('.screen-overlay');if(!dialog)return;
  if(event.key==='Escape'){screen='map';render();return;}
- if(event.key==='Tab'){const items=[...dialog.querySelectorAll('button:not(:disabled), input, [tabindex="0"]')].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
+ if(event.key==='Tab'){const items=[...dialog.querySelectorAll('button:not(:disabled), input, [tabindex="0"]'),...document.querySelectorAll('.app-update button:not(:disabled)')].filter(el=>el.getClientRects().length);const first=items[0],last=items.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
 });
 function tone(success=true){SoundWorld.play(success?'tap':'wrong');}
 root.addEventListener('contextmenu',event=>{

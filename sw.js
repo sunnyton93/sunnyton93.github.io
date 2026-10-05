@@ -1,5 +1,7 @@
 const CACHE_PREFIX = 'ximena-app-';
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+// Replaced automatically by build:web and by the publication workflow.
+const APP_VERSION = 'd8ce0779090d.dbc07b660e4b';
+const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  '/', '/style.css', '/app-shell.css', '/ocean.js', '/archipelago.js', '/sound.js',
  '/island-vocabulary.js', '/games.js', '/platforms.js', '/app.js', '/pwa.js',
@@ -13,7 +15,12 @@ self.addEventListener('install', event => {
  event.waitUntil(caches.open(CACHE_NAME).then(cache =>
   cache.addAll(APP_ASSETS.map(path => new Request(path, {cache: 'reload'})))
  ));
- // Updates wait for open games to close; never force a reload during a round.
+ // The page offers the update only after every asset has downloaded.
+});
+
+self.addEventListener('message', event => {
+ if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
+ if (event.data?.type === 'GET_VERSION') event.source?.postMessage({type: 'APP_VERSION', version: APP_VERSION});
 });
 
 self.addEventListener('activate', event => {
@@ -21,29 +28,20 @@ self.addEventListener('activate', event => {
   const keys = await caches.keys();
   await Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map(key => caches.delete(key)));
   await self.clients.claim();
+  const clients = await self.clients.matchAll({type: 'window'});
+  for (const client of clients) client.postMessage({type: 'APP_VERSION', version: APP_VERSION});
  })());
 });
 
 async function loadAsset(request, path) {
  const cache = await caches.open(CACHE_NAME);
  const cached = await cache.match(path);
- const controller = new AbortController();
- // On a failing Wi-Fi connection, use the installed copy promptly.
- const timeout = cached ? setTimeout(() => controller.abort(), 2500) : null;
- try {
-  const response = await fetch(request, {cache: 'no-cache', signal: controller.signal});
-  if (!response.ok) {
-   if (cached) return cached;
-   return response;
-  }
-  try { await cache.put(path, response.clone()); } catch { /* Storage can be full. */ }
-  return response;
- } catch (error) {
-  if (cached) return cached;
-  throw error;
- } finally {
-  if (timeout !== null) clearTimeout(timeout);
- }
+ // Keep one complete release until the player accepts the next one.
+ if (cached) return cached;
+ const response = await fetch(request, {cache: 'no-cache'});
+ if (!response.ok) return response;
+ try { await cache.put(path, response.clone()); } catch { /* Storage can be full. */ }
+ return response;
 }
 
 self.addEventListener('fetch', event => {

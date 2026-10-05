@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Identificar la versión publicada
+        run: node .github/scripts/version-site.mjs . "$GITHUB_SHA"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
