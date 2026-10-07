@@ -851,6 +851,72 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .bonus-amount>span:first-child{display:block}
 .bonus-amount>span:last-child{display:inline}
 .island-coin-bonus{display:inline-flex;align-items:center;vertical-align:middle;margin-left:5px;padding:3px 7px;border:1px solid #e4b457;border-radius:10px;background:linear-gradient(145deg,#fff5c4,#ffdc83);color:#865321;font-size:13px;font-weight:850;line-height:1.2;white-space:nowrap}
+
+/* Marine visitors share the ocean palette and its visibility/motion lifecycle. */
+/* The camera uses transforms; focusing an animal must never scroll its viewport. */
+.map-viewport{overflow:clip}
+.marine-home{position:absolute;width:var(--visitor-size);height:calc(var(--visitor-size)*.7);margin-left:calc(var(--visitor-size)*-.5);margin-top:calc(var(--visitor-size)*-.35);pointer-events:none}
+.ocean-toys .marine-visitor{display:block;position:absolute;inset:0;width:100%;height:100%;padding:0;background:none;border:0;border-radius:45%;pointer-events:auto;animation:visitor-swim var(--visitor-duration) ease-in-out infinite;animation-delay:var(--visitor-delay);filter:drop-shadow(0 5px 2px #26787912);transition:filter .2s}
+.marine-visitor:hover{filter:drop-shadow(0 0 5px #fff7cd80)}
+.marine-visitor:focus-visible{outline:3px dashed #fff3be;outline-offset:2px}
+.marine-heading{display:block;width:100%;height:100%;animation:visitor-turn var(--visitor-duration) linear infinite;animation-delay:var(--visitor-delay)}
+.marine-art{display:block;width:100%;height:100%;overflow:visible}
+.visitor-tail{transform-origin:-40px 0;animation:visitor-tail 2.1s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.visitor-fin,.visitor-wings{transform-origin:center;animation:visitor-fin 3.4s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.ocean-toys .marine-crawler{animation-name:visitor-scuttle}
+.marine-crawler .marine-heading,.marine-drifter .marine-heading,.marine-boat .marine-heading,.marine-anchored .marine-heading{animation:none}
+.ocean-toys .marine-boat{animation:visitor-boat 7s ease-in-out infinite;animation-delay:var(--visitor-delay)}
+.ocean-toys .marine-anchored{animation:none}
+.visitor-fronds{transform-origin:0 32px;animation:visitor-sway 4.8s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.visitor-sail{transform-origin:-5px 16px;animation:visitor-sway 3.8s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.visitor-shell{transform-origin:0 30px;animation:visitor-shell 6s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.visitor-ripple{animation:visitor-ripple 4s ease-in-out infinite;animation-delay:var(--visitor-delay,0s)}
+.visitor-legs{animation:visitor-steps var(--visitor-duration,24s) linear infinite;animation-delay:var(--visitor-delay,0s);transform-origin:center}
+.visitor-claws{animation:visitor-fin 4.5s ease-in-out infinite;transform-origin:center}
+.ocean-toys .marine-drifter{animation-name:visitor-drift;animation-duration:11s}
+.visitor-bell{animation:visitor-pulse 3s ease-in-out infinite;transform-origin:0 0}
+.visitor-tentacles{animation:visitor-tentacles 3s ease-in-out infinite;transform-origin:0 0}
+.marine-visitor:is(:hover,:focus-visible),.marine-visitor:is(:hover,:focus-visible) .marine-heading{animation-play-state:paused}
+.marine-conversation .map-canvas *,.marine-conversation .map-canvas *::before,.marine-conversation .map-canvas *::after{animation-play-state:paused!important}
+.marine-dialog{position:fixed;inset:0;width:min(380px,calc(100vw - 28px));max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));margin:auto;padding:48px 22px 22px;overflow:auto;border:2px solid #fff6d9;border-radius:29px;background:radial-gradient(ellipse at 50% 40%,#d9f1df 0,transparent 72%),#fff9e9;color:#315d5c;text-align:center;box-shadow:0 10px 0 #286f6c26,0 24px 65px #164f6155;animation:marine-dialog-in .32s cubic-bezier(.2,.8,.25,1) both}
+.marine-dialog::backdrop{background:#235c6729;animation:marine-backdrop-in .25s ease-out}
+.marine-close{position:absolute;z-index:2;right:10px;top:10px;width:44px;height:44px;border-radius:50%;background:#fffdf4cc;color:#477570;font-size:27px}
+.marine-portrait{position:relative;display:grid;place-items:center;width:100%;height:225px;margin:15px auto 0;border-radius:50%;background:radial-gradient(ellipse,#a9dbcf85,transparent 68%)}
+.marine-portrait>.marine-art{width:100%;height:225px;animation:marine-portrait-float 4s ease-in-out infinite}
+.marine-portrait>.animal{width:245px;max-width:100%;height:220px;animation:marine-portrait-float 4s ease-in-out infinite}
+.marine-dialog h2{margin:0 0 3px;font-size:19px;line-height:1.2}
+.marine-english{font-size:13px;color:#6a8d84}
+.marine-result{--speech-fill:#fffdf3;--speech-line:#c4d9bd;position:relative;z-index:1;width:calc(100% - 18px);margin:0 auto;padding:15px 17px;background:var(--speech-fill);border:2px solid var(--speech-line);border-radius:22px;box-shadow:0 4px 0 #527d6510}
+.marine-result::after{content:'';position:absolute;bottom:-10px;left:68%;width:17px;height:17px;transform:rotate(45deg);background:var(--speech-fill);border-right:2px solid var(--speech-line);border-bottom:2px solid var(--speech-line);border-radius:0 0 4px 0}
+.marine-result p{position:relative;margin:0;font-size:19px;font-weight:bold;line-height:1.4}
+.marine-result .marine-return{display:block;margin-top:7px;font-size:13px;font-weight:normal;line-height:1.35;opacity:.8}.marine-result .marine-return[hidden]{display:none}
+.marine-gift{--speech-fill:#fff5d4;--speech-line:#e6d398;color:#80662f}
+.marine-mischief{--speech-fill:#fff0e5;--speech-line:#e5c6b2;color:#8c5e4a}
+.marine-change{position:absolute;bottom:17px;right:15px;display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border:2px solid #fff7d5;border-radius:18px;background:#ffe7a0;color:#896323;box-shadow:0 3px 0 #ba98572b;font-size:23px;line-height:1;animation:marine-result-in .4s ease-out}
+.marine-change[hidden]{display:none}.marine-change.is-loss{background:#f5d7c4;border-color:#fff0e4;color:#9c5c43}.marine-change .gold-coin-icon{font-size:19px}
+.marine-continue{display:flex;justify-content:center;align-items:center;gap:12px;width:100%;min-height:46px;margin-top:19px;border-radius:15px;background:#438a76;color:#fff9de;font-size:14px;font-weight:bold;box-shadow:0 4px 0 #2b6c5a}
+.marine-continue:hover{background:#367963}
+@keyframes visitor-swim{0%,100%{transform:translate(-37px,4px)}23%{transform:translate(0,-9px)}46%,50%{transform:translate(37px,3px)}73%{transform:translate(0,12px)}96%{transform:translate(-37px,4px)}}
+@keyframes visitor-turn{0%,46%,100%{transform:scaleX(1)}50%,96%{transform:scaleX(-1)}}
+@keyframes visitor-tail{0%,100%{transform:scaleX(.88) skewY(-5deg)}50%{transform:scaleX(1) skewY(5deg)}}
+@keyframes visitor-fin{0%,100%{transform:scaleY(.92) rotate(-2deg)}50%{transform:scaleY(1.04) rotate(2deg)}}
+@keyframes visitor-scuttle{0%,15%,100%{transform:translate(-14px,0)}30%,62%{transform:translate(18px,3px)}78%,91%{transform:translate(-3px,-2px)}}
+@keyframes visitor-steps{0%,15%,30%,62%,78%,91%,100%{transform:none}17%,21%,25%,29%,64%,68%,72%,76%,93%,97%{transform:skewX(-5deg) translateY(-1px)}19%,23%,27%,66%,70%,74%,95%,99%{transform:skewX(5deg)}}
+@keyframes visitor-drift{0%,100%{transform:translate(-7px,9px) rotate(-4deg)}50%{transform:translate(8px,-15px) rotate(4deg)}}
+@keyframes visitor-boat{0%,100%{transform:translate(-6px,3px) rotate(-3deg)}50%{transform:translate(6px,-4px) rotate(3deg)}}
+@keyframes visitor-sway{0%,100%{transform:skewX(-3deg)}50%{transform:skewX(3deg)}}
+@keyframes visitor-shell{0%,100%{transform:scaleY(.92)}50%{transform:scaleY(1)}}
+@keyframes visitor-ripple{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes visitor-pulse{0%,100%{transform:scale(1,.93)}45%{transform:scale(.91,1.04)}}
+@keyframes visitor-tentacles{0%,100%{transform:skewX(-5deg) scaleY(.94)}50%{transform:skewX(6deg) scaleY(1.05)}}
+@keyframes marine-dialog-in{from{opacity:0;transform:translateY(16px) scale(.93)}to{opacity:1;transform:none}}
+@keyframes marine-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes marine-portrait-float{0%,100%{transform:translateY(2px) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}
+@keyframes marine-result-in{from{transform:scale(.88);opacity:.3}to{transform:scale(1);opacity:1}}
+[data-calm=true] .marine-dialog,[data-calm=true] .marine-dialog *,[data-calm=true] .marine-dialog::backdrop{animation:none!important}
+@media(prefers-reduced-motion:reduce){.marine-home *,.marine-dialog,.marine-dialog *,.marine-dialog::backdrop{animation:none!important;transition:none!important}}
+@media(max-height:600px){.marine-dialog{padding:42px 18px 18px}.marine-portrait{height:175px;margin-top:12px}.marine-portrait>.marine-art,.marine-portrait>.animal{height:180px}.marine-result{padding:12px 15px}.marine-result p{font-size:17px}.marine-continue{margin-top:14px}}
+@media(max-height:600px) and (min-width:600px){.marine-dialog[open]{display:grid;grid-template-columns:1.1fr 1fr;column-gap:24px;width:min(640px,calc(100vw - 32px));padding:24px}.marine-portrait{grid-column:1;grid-row:1 / span 3;height:200px;margin:0}.marine-portrait>.marine-art,.marine-portrait>.animal{height:200px}.marine-identity{grid-column:1;grid-row:4}.marine-result{grid-column:2;grid-row:1 / span 2;align-self:center;width:100%;margin:24px 0 8px}.marine-result::after{left:-10px;top:50%;bottom:auto;transform:translateY(-50%) rotate(45deg);border-width:0 0 2px 2px;border-style:solid;border-color:var(--speech-line)}.marine-continue{grid-column:2;grid-row:3;align-self:start;margin:0}}
 @media(max-width:420px){.island-coin-bonus{font-size:11px;margin-left:2px;padding:2px 5px}}
 
 

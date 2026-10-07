@@ -44,6 +44,7 @@ function audioSettingsView(){return `${header('Sonidos de la aventura','DALE VID
 function render(){
  if(screen!=='adventure'){cancelGameTurn();adventure=null;}
  if(screen==='adventure'&&document.querySelector('.island-game')){updateAdventure();return;}
+ closeMarineEncounter(false);
  const previousFocus=document.activeElement;
  const islandScreen=screen==='adventure'||screen==='locked';
  const keepMap=!islandScreen&&Boolean(document.querySelector('.world-app > .full-map .map-viewport'));
