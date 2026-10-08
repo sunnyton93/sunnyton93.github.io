@@ -76,7 +76,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .balloon-string{display:block;height:47px;width:14px;border-left:2px solid #789b8b90;border-radius:50%;margin:5px auto 0}
 .balloon-burst{position:absolute;top:20px;left:10%;width:80%;text-align:center;font-size:70px;color:#fff8d4;opacity:0;pointer-events:none}
 .word-balloon:disabled{opacity:1;cursor:default}.word-balloon:focus-visible .balloon-body{outline:3px dashed #357a70;outline-offset:4px}
-.is-shooting .word-balloon{animation-play-state:paused}.word-balloon.is-hit .balloon-body{animation:balloon-pop .45s ease-out forwards}.word-balloon.is-hit .balloon-string{opacity:0}.word-balloon.is-hit .balloon-burst{animation:balloon-spark .5s ease-out forwards}
+.word-balloon.is-hit .balloon-body{animation:balloon-pop .45s ease-out forwards}.word-balloon.is-hit .balloon-string{opacity:0}.word-balloon.is-hit .balloon-burst{animation:balloon-spark .5s ease-out forwards}
 .word-balloon.is-correct .balloon-body{background:#9ce1af}.word-balloon.archery-miss .balloon-body{background:#ec9094;border-color:#c95667}
 .archery-bow{position:absolute;bottom:8px;left:calc(50% - 75px);width:150px;height:95px}.archery-bow svg{width:100%;height:100%}
 .archery-flight{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:4}.archery-arrow{opacity:0;transform-origin:0 0}.is-shooting .archery-arrow{opacity:1;filter:drop-shadow(0 2px 2px #365c5140)}
@@ -98,7 +98,6 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .balloon-body{background:radial-gradient(ellipse at 27% 15%,#ffffffcc,transparent 43%),radial-gradient(ellipse at 65% 80%,#447e7629,transparent 70%),var(--balloon-color);box-shadow:inset -8px -12px 0 #3d6e6c12,inset 5px 5px 12px #fff6,0 12px 16px #477c861b}
 .balloon-body::before{content:'';position:absolute;inset:7px;border:1px solid #ffffff38;border-radius:inherit;pointer-events:none}
 .balloon-shine{filter:blur(1px)}
-.is-aiming .word-balloon{animation-play-state:paused}
 .word-balloon.is-aimed .balloon-body{outline:3px solid #fff6bd;outline-offset:5px;filter:drop-shadow(0 0 8px #ffed84);transform:scale(1.04)}
 .island-game .word-balloon:focus-visible{outline:0}
 .archery-bow{padding:0;background:transparent;border:0;touch-action:none;cursor:grab;z-index:7;transform-origin:50% 65%;filter:drop-shadow(0 5px 4px #2b5b5545)}
@@ -129,6 +128,15 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 @media(max-height:750px){.screen-overlay:has(.archery-game){padding-top:12px;padding-bottom:12px}.screen-overlay:has(.archery-game)>header{margin-bottom:10px}.island-game:has(.archery-game) .lesson-modes{margin:8px 0}.island-game:has(.archery-game) .lesson-track{margin:7px 0}.archery-prompt{padding:6px 10px}.archery-clue{font-size:30px}.archery-prompt h2{font-size:19px}.archery-field{height:330px}.archery-targets{inset:45px 20px 92px}.word-balloon{height:92px}.balloon-body{min-height:68px}.balloon-body b{font-size:13px}.balloon-string{height:18px}.archery-feedback{bottom:84px;font-size:11px}.archery-bow{bottom:2px}}
 [data-calm=true] .archery-cloud,[data-calm=true] .archery-feedback{animation:none!important}
 @media(prefers-reduced-motion:reduce){.archery-cloud,.archery-feedback{animation:none!important}.archery-countdown i::after{transition:none}}
+/* Translation, impact deformation and the existing pop each own a separate layer. */
+.archery-targets{--balloon-base-height:132px}
+.archery-targets.is-physical{display:block}
+.archery-targets.is-physical .word-balloon{position:absolute;left:0;top:0;width:var(--balloon-physics-width);max-width:none;height:auto;margin:0;animation:none;will-change:transform}
+.archery-targets.is-physical .balloon-body{min-height:0;height:var(--balloon-physics-height)}
+.balloon-envelope{display:block;transform-origin:50% 50%}
+@media(max-width:600px){.archery-targets{--balloon-base-height:83px}}
+@media(max-height:750px){.archery-targets{--balloon-base-height:68px}}
+@media(prefers-reduced-motion:reduce){.archery-targets.is-physical .word-balloon{will-change:auto}}
 .lesson-status{align-items:center}
 .game-clock{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;font-weight:bold;color:#397a70;font-variant-numeric:tabular-nums;white-space:nowrap}
 .game-clock>span{color:#b2872c;font-size:14px}
@@ -665,7 +673,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .scene-score{flex-shrink:0;font-size:17px;font-weight:800;color:#94601b;background:#ffe7a7;border-radius:12px;padding:8px;white-space:nowrap}
 .scene-clue .archery-round{margin:0}
 .archery-game .archery-field{height:clamp(410px,calc(100dvh - 300px),640px)}
-.archery-game .archery-targets{inset:106px 22px 105px}
+.archery-game .archery-targets{inset:10px}
 .platform-game{max-width:1100px}
 .platform-play-area{position:relative;display:grid;grid-template-columns:128px minmax(0,1fr) 112px;gap:0}
 .platform-stage{position:relative;grid-column:1/-1;grid-row:1;min-width:0;padding-top:74px;overflow:hidden;border:2px solid #a1cdbc;border-radius:26px;background:linear-gradient(#81c9c9,#459cac);box-shadow:0 5px 0 #438e9c30}
@@ -685,7 +693,6 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
  .scene-score{font-size:14px;padding:6px}
  .archery-game .archery-countdown,.archery-game .archery-combo{top:76px}
  .archery-game .archery-field{height:clamp(450px,calc(100dvh - 290px),650px)}
- .archery-game .archery-targets{inset:127px 22px 105px;row-gap:15px}
  .platform-stage{padding-top:96px}
  .platform-stage .platform-owl{top:65px;left:10px;width:32px;height:32px}
  .platform-timing{top:70px;right:12px;width:88px}
@@ -695,6 +702,21 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
  .platform-play-area .platform-scene{height:clamp(310px,calc(100dvh - 390px),500px)}
  .platform-play-area .platform-controls{padding-bottom:12px}
 }
+
+/* Dictionary cards keep their artwork and gain a full-card pronunciation button. */
+.dictionary-audio-status{margin:-6px 0 16px;min-height:1.5em;color:#527266;font-size:13px;line-height:1.5}
+.word-card:has(.word-pronounce){position:relative;transition:border-color .18s,box-shadow .18s}
+.word-pronounce{position:absolute;inset:0;z-index:1;width:100%;height:100%;padding:0;background:transparent;border:0;border-radius:inherit;touch-action:manipulation}
+.word-pronounce:hover{background:#59a88308}
+.word-pronounce:active{transform:none}
+.word-pronounce:focus-visible{outline:3px solid #286eae;outline-offset:3px}
+.word-speaker{position:absolute;right:11px;top:11px;width:28px;height:28px;padding:4px;border-radius:50%;background:#e6f1df;color:#397a70;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.word-card.is-speech-pending{border-color:#8bbfba}
+.word-card.is-speaking{border-color:#328d72;box-shadow:0 0 0 3px #55aa852b}
+.is-speaking .word-speaker{background:#328d72;color:#fff9df}
+.is-speaking .speech-waves{animation:dictionary-speaking .6s ease-in-out infinite alternate}
+@keyframes dictionary-speaking{from{opacity:.35}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.is-speaking .speech-waves{animation:none}.word-card:has(.word-pronounce){transition:none}}
 
 .platform-water-backdrop{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .platform-stage .platform-scene{position:relative}

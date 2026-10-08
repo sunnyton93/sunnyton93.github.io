@@ -107,6 +107,7 @@ function closeInactivityShark(){
  document.querySelector('.blaster-frame')?.contentWindow?.postMessage({type:'host-pause',paused:false},location.origin);
  const round=dialog.pausedRound;
  if(round&&adventure===round&&!round.done&&!document.hidden){round.pausedMs+=performance.now()-round.pausedAt;round.pausedAt=null;if(gameClockActive)startGameClock();}
+ syncArcheryMotion();
  (dialog.returnFocus?.isConnected?dialog.returnFocus:document.querySelector('.map-viewport'))?.focus({preventScroll:true});
 }
 function showInactivityShark(receipt){
@@ -132,6 +133,7 @@ function showInactivityShark(receipt){
  });
  dialog.addEventListener('animationend',event=>{if(event.animationName==='shark-talk')dialog.classList.remove('is-speaking');});
  document.body.append(dialog);document.documentElement.dataset.inactivityDialog='true';dialog.showModal();dialog.querySelector('.inactivity-continue').focus({preventScroll:true});
+ pauseArcheryMotion();
  document.querySelector('.blaster-frame')?.contentWindow?.postMessage({type:'host-pause',paused:true},location.origin);
 }
 window.addEventListener('pageshow',()=>{checkInactivityOpening();});

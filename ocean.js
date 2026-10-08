@@ -14,7 +14,7 @@ document.addEventListener('click',event=>{
  const target=event.target.closest('[data-ocean]');
  if(target){const kind=target.dataset.ocean;
   if(kind==='marine'||['fish','turtle','octopus'].includes(kind)){event.stopPropagation();openMarineEncounter(target,kind==='marine'?target.dataset.marineId:kind);return;}
-  if(kind==='motion'){calm=!calm;refreshMotion();SoundWorld.play('tap');return;}
+  if(kind==='motion'){calm=!calm;refreshMotion();syncArcheryMotion();SoundWorld.play('tap');return;}
   if(kind==='mascot'){announceOcean('Te quiero con todo mi corazón. Atte. Sunny');}
   else if(kind==='treasure'){target.classList.toggle('opened');announceOcean(target.classList.contains('opened')?'¡Un tesoro de estrellas! Sigue explorando para conocer nuevos amigos.':'El cofre guarda otra sorpresa para tu próxima visita.');}
   else if(kind==='bubble'){if(target.classList.contains('popped'))return;target.classList.add('popped');setTimeout(()=>target.classList.remove('popped'),1800);}

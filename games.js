@@ -242,6 +242,7 @@ function syncMemoryText(){
 document.fonts?.addEventListener('loadingdone',()=>fitMemoryText());
 let archeryImpactTimer;
 let archeryAnimations=[];
+let archeryShot=null;
 let archeryAim=null;
 let connectDrag=null;
 let suppressConnectClick=false;
@@ -309,12 +310,20 @@ function cancelArcheryAim(){
  field?.classList.remove('is-aiming');field?.querySelectorAll('.is-aimed').forEach(el=>el.classList.remove('is-aimed'));
  field?.querySelector('.archery-bow')?.style.removeProperty('transform');
  field?.querySelector('.bow-string')?.setAttribute('d','M18 58 75 70 132 58');
+ syncArcheryMotion();
 }
 function archeryTargetAt(x,y){
  return [...document.querySelectorAll('.word-balloon')].find(button=>{
-  const box=button.querySelector('.balloon-body').getBoundingClientRect();
-  return ((x-box.x-box.width/2)/(box.width/2))**2+((y-box.y-box.height/2)/(box.height/2))**2<=1;
+  if(button.classList.contains('is-hit'))return false;
+  // The collision envelope is stable even while the body squashes or glows.
+  const box=button.getBoundingClientRect(),width=button.offsetWidth,height=button.querySelector('.balloon-envelope').offsetHeight;
+  return ((x-box.x-width/2)/(width/2))**2+((y-box.y-height/2)/(height/2))**2<=1;
  });
+}
+function syncArcheryAimTarget(){
+ const aim=archeryAim;if(!aim?.moved)return;
+ const target=archeryTargetAt(aim.x,aim.y);
+ document.querySelectorAll('.word-balloon').forEach(element=>element.classList.toggle('is-aimed',element===target));
 }
 document.addEventListener('pointerdown',event=>{
  const button=event.target.closest('.connect-board .pair-card');
@@ -376,7 +385,7 @@ document.addEventListener('pointerdown',event=>{
  updateArcheryCountdown();
  if(adventure.done||!handle.isConnected)return;
  event.preventDefault();event.stopPropagation();
- archeryAim={handle,pointerId:event.pointerId,round:adventure,startX:event.clientX,startY:event.clientY,moved:false};
+ archeryAim={handle,pointerId:event.pointerId,round:adventure,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,moved:false};
  handle.setPointerCapture(event.pointerId);document.querySelector('.archery-field').classList.add('is-aiming');
  document.querySelector('.archery-feedback').textContent='';
 });
@@ -387,6 +396,7 @@ document.addEventListener('pointermove',event=>{
  const x=Math.max(0,Math.min(box.width,event.clientX-box.x)),y=Math.max(0,Math.min(box.height,event.clientY-box.y));
  const origin={x:box.width/2,y:box.height-43};
  aim.moved ||= Math.hypot(event.clientX-aim.startX,event.clientY-aim.startY)>12;
+ aim.x=event.clientX;aim.y=event.clientY;
  const angle=Math.atan2(y-origin.y,x-origin.x)*180/Math.PI+90;
  field.querySelector('.archery-bow').style.transform=`rotate(${Math.max(-75,Math.min(75,angle))}deg)`;
  const tension=Math.min(18,Math.hypot(x-origin.x,y-origin.y)/12);
@@ -394,8 +404,7 @@ document.addEventListener('pointermove',event=>{
  const guide=field.querySelector('.archery-aim-guide');guide.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);
  guide.querySelector('path').setAttribute('d',`M${origin.x} ${origin.y} Q${(origin.x+x)/2} ${Math.min(origin.y,y)-25} ${x} ${y}`);
  const reticle=field.querySelector('.archery-reticle');reticle.style.left=`${x}px`;reticle.style.top=`${y}px`;
- field.querySelectorAll('.is-aimed').forEach(el=>el.classList.remove('is-aimed'));
- archeryTargetAt(event.clientX,event.clientY)?.classList.add('is-aimed');
+ syncArcheryAimTarget();
 });
 document.addEventListener('pointerup',event=>{
  const aim=archeryAim;if(!aim||event.pointerId!==aim.pointerId)return;
@@ -415,7 +424,24 @@ document.addEventListener('click',event=>{
 function archeryView(round,lesson){
  if(!round.archeryStarted)return `<div class="archery-intro"><div class="archery-intro-art" aria-hidden="true">🏹 <span>🎈</span></div><h2>¡Apunta y atrapa la palabra!</h2><button class="primary archery-start" data-play="archery-start">Iniciar <span aria-hidden="true">➜</span></button></div>`;
  const word=lesson.words[round.order[round.attempt%round.order.length]];
- return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${word.icon}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
+ return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${word.icon}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
+}
+function paintArcheryShot(impact=false){
+ const shot=archeryShot;if(!shot||adventure!==shot.round)return;
+ const elapsed=elapsedGameMs(shot.round)-shot.startedAt;
+ if(!shot.impacted&&shot.target){
+  const rect=shot.field.getBoundingClientRect(),balloon=shot.target.querySelector('.balloon-envelope').getBoundingClientRect();
+  shot.hit={x:balloon.x+balloon.width/2-rect.x,y:balloon.y+balloon.height/2-rect.y};
+ }
+ const {start,hit}=shot,control={x:(start.x+hit.x)/2,y:Math.min(start.y,hit.y)-25};
+ const t=impact?1:Math.min(1,elapsed/480);
+ const x=(1-t)**2*start.x+2*(1-t)*t*control.x+t*t*hit.x,y=(1-t)**2*start.y+2*(1-t)*t*control.y+t*t*hit.y;
+ const angle=Math.atan2((1-t)*(control.y-start.y)+t*(hit.y-control.y),(1-t)*(control.x-start.x)+t*(hit.x-control.x))*180/Math.PI;
+ shot.arrow.style.transform=`translate(${x}px,${y}px) rotate(${angle}deg)`;
+ shot.arrow.style.opacity=shot.motion?String(Math.max(0,Math.min(1,(640-elapsed)/160))):'0';
+ shot.trail.setAttribute('d',`M${start.x} ${start.y} Q${control.x} ${control.y} ${hit.x} ${hit.y}`);
+ shot.trail.style.strokeDashoffset=String(100*(1-t));
+ shot.trail.style.opacity=shot.motion?String(.8*Math.max(0,Math.min(t*4,(700-elapsed)/220))):'0';
 }
 function shootBalloon(button,aimPoint=null,gesture=null){
  const round=adventure,id=button?Number(button.dataset.id):-1;
@@ -428,20 +454,17 @@ function shootBalloon(button,aimPoint=null,gesture=null){
  const rect=field.getBoundingClientRect(),balloon=body?.getBoundingClientRect();
  const start={x:rect.width/2,y:rect.height-43};
  const hit=balloon?{x:balloon.x+balloon.width/2-rect.x,y:balloon.y+balloon.height/2-rect.y}:{x:Math.max(0,Math.min(rect.width,aimPoint.x-rect.x)),y:Math.max(0,Math.min(rect.height,aimPoint.y-rect.y))};
- const control={x:(start.x+hit.x)/2,y:Math.min(start.y,hit.y)-25};
- const point=t=>({x:(1-t)**2*start.x+2*(1-t)*t*control.x+t*t*hit.x,y:(1-t)**2*start.y+2*(1-t)*t*control.y+t*t*hit.y});
- const frame=t=>{const p=point(t),ahead=point(t+.01),angle=Math.atan2(ahead.y-p.y,ahead.x-p.x)*180/Math.PI;return `translate(${p.x}px,${p.y}px) rotate(${angle}deg)`;};
  const arrow=field.querySelector('.archery-arrow'),motion=!calm&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
  field.querySelector('.archery-flight').setAttribute('viewBox',`0 0 ${rect.width} ${rect.height}`);
- arrow.style.transform=frame(1);
+ const trail=field.querySelector('.archery-trail');trail.setAttribute('pathLength','100');trail.style.strokeDasharray='100';
+ // Keep release-based scoring, while the visible arrow follows the selected
+ // balloon to its live impact position. Other balloons never stop for a shot.
+ archeryShot={round,field,target,arrow,trail,start,hit,startedAt:elapsedGameMs(round),motion,impacted:false};
+ paintArcheryShot();
  const bow=field.querySelector('.archery-bow'),rotation=Math.atan2(hit.y-start.y,hit.x-start.x)*180/Math.PI+90;
  bow.style.transform=`rotate(${rotation}deg)`;
  const reticle=field.querySelector('.archery-reticle');reticle.style.left=`${hit.x}px`;reticle.style.top=`${hit.y}px`;
  if(motion){
-  archeryAnimations.push(arrow.animate(Array.from({length:21},(_,i)=>({transform:frame(i/20/.75),opacity:i<18?1:(20-i)/2,offset:i/20})),{duration:640,easing:'linear',fill:'forwards'}));
-  const trail=field.querySelector('.archery-trail');trail.setAttribute('d',`M${start.x} ${start.y} Q${control.x} ${control.y} ${hit.x} ${hit.y}`);
-  const length=trail.getTotalLength();trail.style.strokeDasharray=String(length);
-  archeryAnimations.push(trail.animate([{strokeDashoffset:String(length),opacity:0},{strokeDashoffset:'0',opacity:.8,offset:.75},{strokeDashoffset:'0',opacity:0}],{duration:700,fill:'forwards'}));
   archeryAnimations.push(field.querySelector('.bow-string').animate([{transform:'translateY(15px)'},{transform:'translateY(-5px)'},{transform:'translateY(3px)'},{transform:'none'}],{duration:350}));
   archeryAnimations.push(bow.animate([{transform:`rotate(${rotation}deg) scale(.88)`},{transform:`rotate(${rotation}deg) scale(1.07)`},{transform:`rotate(${rotation}deg) scale(1)`}],{duration:350}));
  }
@@ -449,6 +472,10 @@ function shootBalloon(button,aimPoint=null,gesture=null){
  archeryImpactTimer=setTimeout(()=>{
   archeryImpactTimer=null;
   if(adventure!==round||screen!=='adventure'||!round.pending)return;
+  paintArcheryShot(true);
+  const hit=archeryShot.hit,impactRect=field.getBoundingClientRect();archeryShot.impacted=true;
+  const movingBody=archeryMotion?.bodies.find(body=>body.element===target);
+  if(movingBody){movingBody.active=false;movingBody.impact?.cancel();movingBody.impact=null;}
   target?.classList.add('is-hit',correct?'is-correct':'archery-miss');
   round.streak=correct?round.streak+1:0;
   round.notice=correct?(round.streak>1?`¡En el blanco! ×${round.streak}`:'¡En el blanco!'):target?'¡Ese no era! Vamos con otra palabra.':'¡Casi! Vamos con otra palabra.';
@@ -461,7 +488,7 @@ function shootBalloon(button,aimPoint=null,gesture=null){
    const particles=field.querySelector('.archery-particles'),color=getComputedStyle(target).getPropertyValue('--balloon-color');
    particles.innerHTML=Array.from({length:16},(_,i)=>`<i style="left:${hit.x}px;top:${hit.y}px;background:${i%3?color:'#fff2b3'};--dx:${Math.cos(i*Math.PI/8)*(45+i*4)}px;--dy:${Math.sin(i*Math.PI/8)*(45+i*4)}px;--spin:${i*55}deg"></i>`).join('');
    particles.insertAdjacentHTML('beforeend',`<span class="archery-impact-ring" style="left:${hit.x}px;top:${hit.y}px"></span>`);
-   if(correct)burst(balloon.x+balloon.width/2,balloon.y+balloon.height/2,12);
+   if(correct)burst(impactRect.x+hit.x,impactRect.y+hit.y,12);
    archeryAnimations.push(field.animate([{transform:'translate(0)'},{transform:'translate(2px,-2px)'},{transform:'translate(-2px,1px)'},{transform:'translate(0)'}],{duration:180}));
   }
  },motion?480:80);
@@ -469,6 +496,7 @@ function shootBalloon(button,aimPoint=null,gesture=null){
   gameTurnTimer=null;
   if(adventure!==round||screen!=='adventure'||!round.pending)return;
   archeryAnimations.forEach(animation=>animation.cancel());archeryAnimations=[];
+  archeryShot=null;
   advanceArcheryRound(round,correct);
  },motion?1150:650);
 }
@@ -492,7 +520,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  const wordIds=islandLessons[index].words.map(word=>word.id);
  const memoryVocabulary=mode==='memory'?memoryVocabularyForIsland(index):islandLessons[index].words;
  const memoryWords=shuffle(memoryVocabulary.map(word=>word.id));
- const connectWords=shuffle(wordIds).slice(0,Math.min(8,wordIds.length));
+ const connectWords=shuffle(wordIds).slice(0,Math.min(10,wordIds.length));
  const gameWords=mode==='connect'?connectWords:wordIds;
  adventure={index,mode,step:0,attempt:0,mistakes:0,turns:0,streak:0,matched:[],picks:[],notice:'',wrong:[],checked:false,pending:false,done:false,memorySeen:[],memoryMisses:[],memoryRecallHits:0,memoryRecallErrors:0,memoryVocabulary,memoryWords,target:mode==='memory'?memoryWords.length:mode==='connect'?connectWords.length:wordIds.length,order:shuffle(wordIds),left:shuffle(gameWords),right:shuffle(gameWords),deck:shuffle(Array.from({length:memoryWords.length*2},(_,id)=>({id,word:memoryWords[id%memoryWords.length],english:id<memoryWords.length})))};
  screen='adventure';
@@ -533,7 +561,9 @@ function cancelGameTurn(){
  cancelPlatforms();
  clearConnectDrag();
  cancelArcheryAim();
+ cancelArcheryMotion();
  clearTimeout(archeryImpactTimer);archeryImpactTimer=null;
+ archeryShot=null;
  archeryAnimations.forEach(animation=>animation.cancel());archeryAnimations=[];
  stopGameClock();
  clearTimeout(gameTurnTimer);gameTurnTimer=null;
@@ -591,6 +621,7 @@ function updateAdventure(){
  patchGameNode(dialog.querySelector('.island-game'),template.content.querySelector('.island-game'));
  syncIslandRoom();
  syncMemoryText();
+ syncArcheryMotion();
  const audio=dialog.querySelector('.overlay-audio');audio.textContent=muted?'♪ ×':'♪ ✓';audio.setAttribute('aria-label',muted?'Activar sonido':'Silenciar sonido');
  document.querySelectorAll('.hud-stars b').forEach(el=>el.textContent=totalStars());
  document.querySelectorAll('.map-node.is-locked').forEach(node=>{
