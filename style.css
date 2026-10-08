@@ -896,6 +896,31 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .marine-change[hidden]{display:none}.marine-change.is-loss{background:#f5d7c4;border-color:#fff0e4;color:#9c5c43}.marine-change .gold-coin-icon{font-size:19px}
 .marine-continue{display:flex;justify-content:center;align-items:center;gap:12px;width:100%;min-height:46px;margin-top:19px;border-radius:15px;background:#438a76;color:#fff9de;font-size:14px;font-weight:bold;box-shadow:0 4px 0 #2b6c5a}
 .marine-continue:hover{background:#367963}
+/* The inactivity visitor keeps the ocean's illustrated palette and rounded cards. */
+.inactivity-dialog{position:fixed;inset:0;width:min(430px,calc(100vw - 28px));max-height:calc(100dvh - 28px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));margin:auto;padding:27px 25px 23px;overflow:auto;border:2px solid #fff6da;border-radius:30px;background:radial-gradient(ellipse at 50% 50%,#cde8df,transparent 65%),#fff9e9;color:#315d5c;text-align:center;box-shadow:0 9px 0 #245d6924,0 24px 70px #123c5966;animation:marine-dialog-in .4s cubic-bezier(.2,.8,.25,1) both}
+.inactivity-dialog::backdrop{background:#183e5866;backdrop-filter:blur(3px);animation:marine-backdrop-in .3s ease-out}
+.inactivity-close{position:absolute;right:9px;top:7px;width:44px;height:44px;border-radius:50%;background:#ffffff80;color:#477570;font-size:27px}
+.inactivity-dialog h2{margin:0 0 17px;color:#315d68;font-size:29px;line-height:1.15}
+.inactivity-speech{position:relative;padding:15px 17px;border:2px solid #decda9;border-radius:21px;background:#fffdf3;box-shadow:0 4px 0 #527d650b}
+.inactivity-speech::after{content:'';position:absolute;bottom:-10px;right:70px;width:16px;height:16px;transform:rotate(45deg);border-right:2px solid #decda9;border-bottom:2px solid #decda9;background:#fffdf3}
+.inactivity-speech p{margin:0;font-size:16px;line-height:1.5}.inactivity-speech b{color:#8c5e4a}
+.inactivity-portrait{position:relative;margin:0 -10px 14px}.inactivity-shark{display:block;width:100%;height:216px;overflow:visible}
+.inactivity-name{display:inline-block;margin-top:-3px;padding:5px 14px;border:1px solid #87afa74d;border-radius:20px;color:#467677;background:#eef6e6;font-size:12px;font-weight:bold}
+.inactivity-continue{display:flex;align-items:center;justify-content:center;gap:16px;width:100%;min-height:49px;padding:10px;border-radius:15px;background:#438a76;color:#fff9de;box-shadow:0 4px 0 #2b6c5a;font-size:15px;font-weight:bold}.inactivity-continue:hover{background:#367963}
+.inactivity-dialog button:focus-visible{outline:3px solid #d89538;outline-offset:3px}
+.shark-swagger{transform-origin:220px 143px;animation:shark-swagger 3.8s ease-in-out infinite}.shark-tail{transform-origin:107px 141px;animation:shark-tail 1.3s ease-in-out infinite}.shark-fin{transform-origin:218px 161px;animation:shark-fin 2.7s ease-in-out infinite}.shark-eyes{transform-origin:320px 123px;animation:shark-blink 4.6s ease-in-out infinite}.shark-brows{transform-origin:315px 110px;animation:shark-sneer 3.2s ease-in-out infinite}.shark-mouth{transform-origin:320px 148px;transform:scaleY(.4)}.is-speaking .shark-mouth{animation:shark-talk .85s ease-in-out 18}.shark-loot{transform-origin:83px 209px;animation:shark-loot 3.8s ease-in-out infinite}
+@keyframes shark-talk{0%,26%,52%,78%,100%{transform:scaleY(.4)}13%,65%{transform:scaleY(1)}40%,90%{transform:scaleY(.7)}}
+@keyframes shark-swagger{0%,100%{transform:translate(-5px,3px) rotate(-2deg)}50%{transform:translate(6px,-5px) rotate(2deg)}}
+@keyframes shark-tail{0%,100%{transform:skewY(-7deg) scaleX(.94)}50%{transform:skewY(7deg) scaleX(1.02)}}
+@keyframes shark-fin{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
+@keyframes shark-blink{0%,43%,49%,100%{transform:scaleY(1)}46%{transform:scaleY(.12)}}
+@keyframes shark-sneer{0%,100%{transform:rotate(0)}50%{transform:translateY(-3px) rotate(-4deg)}}
+@keyframes shark-loot{0%,100%{transform:translateY(0) rotate(-8deg)}50%{transform:translateY(-6px) rotate(9deg)}}
+[data-inactivity-dialog=true] #app *,[data-inactivity-dialog=true] #app *::before,[data-inactivity-dialog=true] #app *::after,[data-hidden=true] .inactivity-dialog *,[data-hidden=true] .inactivity-dialog{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.inactivity-dialog,.inactivity-dialog *,.inactivity-dialog::backdrop{animation:none!important;transition:none!important}}
+@media(max-width:380px){.inactivity-dialog{padding:25px 17px 19px}.inactivity-dialog h2{font-size:26px}.inactivity-speech{padding:12px}.inactivity-speech p{font-size:15px}.inactivity-shark{height:185px}}
+@media(max-height:700px){.inactivity-dialog{padding-top:23px}.inactivity-dialog h2{font-size:25px;margin-bottom:12px}.inactivity-shark{height:170px}.inactivity-speech p{font-size:14px}.inactivity-portrait{margin-bottom:10px}}
+@media(max-height:500px) and (min-width:600px){.inactivity-dialog[open]{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;width:min(740px,calc(100vw - 30px));padding:22px}.inactivity-dialog h2{grid-column:1;grid-row:1;margin:0}.inactivity-portrait{grid-column:1;grid-row:2 / span 2;margin:0}.inactivity-shark{height:170px}.inactivity-speech{grid-column:2;grid-row:1 / span 2;align-self:center;margin:12px 12px 0 0;padding:12px}.inactivity-speech::after{display:none}.inactivity-continue{grid-column:2;grid-row:3;align-self:start;min-height:44px}}
 @keyframes visitor-swim{0%,100%{transform:translate(-37px,4px)}23%{transform:translate(0,-9px)}46%,50%{transform:translate(37px,3px)}73%{transform:translate(0,12px)}96%{transform:translate(-37px,4px)}}
 @keyframes visitor-turn{0%,46%,100%{transform:scaleX(1)}50%,96%{transform:scaleX(-1)}}
 @keyframes visitor-tail{0%,100%{transform:scaleX(.88) skewY(-5deg)}50%{transform:scaleX(1) skewY(5deg)}}

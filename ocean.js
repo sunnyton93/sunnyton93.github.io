@@ -284,7 +284,7 @@ function initializeMarineCooldowns(){
   if(hadPending){coinBalance=readCoinBalance();syncCoinHud();}
  });
 }
-window.addEventListener('pageshow',()=>{initializeMarineCooldowns().catch(()=>{});});
+// Opening initialization is coordinated with the inactivity check in inactivity.js.
 function shuffleMarine(values){
  const result=[...values];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;
 }
@@ -343,6 +343,7 @@ function settleMarineReceipt(state){
  if(receipt.roundStartedAt!==undefined&&receipt.roundStartedAt!==state.roundStartedAt)throw new Error('Invalid receipt round');
  const current=Number(localStorage.getItem(COIN_STORAGE_KEY)||0);
  if(current===receipt.before)localStorage.setItem(COIN_STORAGE_KEY,String(receipt.after));
+ if(receipt.after>receipt.before&&!recordActivityReward({coins:receipt.after-receipt.before,at:receipt.at,source:`marine:${receipt.id}`,id:`${receipt.roundStartedAt??0}:${receipt.id}:${receipt.at}`}))throw new Error('Reward date not saved');
  // A different balance belongs to a later game or purchase; never overwrite it.
  state.animals[receipt.id].met=true;state.animals[receipt.id].lastMetAt=receipt.at;state.animals[receipt.id].lastEffect=receipt.effect??state.animals[receipt.id].effect;delete state.pending;
  localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));
@@ -365,6 +366,7 @@ function withMarineLock(action){
 }
 function claimMarineEncounter(id){
  return withMarineLock(()=>{
+  prepareActivityCoinChange();
   if(!marineSpecies.some(s=>s.id===id))throw new Error('Unknown animal');
   const state=readMarineSave(),now=Date.now();prepareMarineRound(state,now);
   const entry=state.animals[id];
@@ -378,9 +380,8 @@ function claimMarineEncounter(id){
   localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));
   try{localStorage.setItem(COIN_STORAGE_KEY,String(after));}
   catch(error){delete state.pending;localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));throw error;}
-  entry.met=true;entry.lastMetAt=now;entry.lastEffect=entry.effect;delete state.pending;
   // If only this final write fails, the durable receipt still prevents a second debit.
-  try{localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));}catch{}
+  try{settleMarineReceipt(state);}catch{}
   coinBalance=after;syncCoinHud();return {repeat:false,effect:entry.effect,delta:after-before};
  });
 }

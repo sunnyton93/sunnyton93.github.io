@@ -179,7 +179,7 @@
         let activeEnemy = null;
         resize();
         
-        let lastTime = 0,animationFrame=null;
+        let lastTime = 0,animationFrame=null,hostPaused=false;
         let enemySpawnTimer = 0;
         let enemySpawnInterval = 4500;
         let baseSpeed = 0.45; // A gentler pace for reading and typing
@@ -459,6 +459,7 @@
         }
 
         function handleKey(e) {
+            if(hostPaused)return;
             if(document.hidden||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;
             if(e.key==='Escape'){send('exit');return;}
             if(e.key===' '||/^[a-z]$/i.test(e.key))e.preventDefault?.();
@@ -536,7 +537,11 @@
         document.querySelector('#keyboard').innerHTML=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].map(row=>'<div>'+[...row].map(key=>'<button type="button" aria-label="Letra '+key+'">'+key+'</button>').join('')+'</div>').join('');
         document.querySelector('#keyboard').addEventListener('click',event=>{if(event.target.matches('button')&&gameState==='playing')handleKey({key:event.target.textContent});});
         function pauseAnimation(){cancelAnimationFrame(animationFrame);animationFrame=null;lastTime=0;}
-        function resumeAnimation(){if(!document.hidden&&animationFrame===null)animationFrame=requestAnimationFrame(gameLoop);}
+        function resumeAnimation(){if(!document.hidden&&!hostPaused&&animationFrame===null)animationFrame=requestAnimationFrame(gameLoop);}
+        window.addEventListener('message',event=>{
+            if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='host-pause'||typeof event.data.paused!=='boolean')return;
+            hostPaused=event.data.paused;if(hostPaused)pauseAnimation();else resumeAnimation();
+        });
         document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseAnimation();else resumeAnimation();});
         window.addEventListener('pagehide',pauseAnimation);
         window.addEventListener('pageshow',resumeAnimation);
@@ -544,7 +549,7 @@
         function gameLoop(timestamp) {
             animationFrame=null;
             const dt = lastTime ? Math.min(50,timestamp-lastTime) : 0;
-            if(document.hidden){lastTime=0;return;}
+            if(document.hidden||hostPaused){lastTime=0;return;}
             lastTime = timestamp;
 
             ctx.clearRect(0, 0, width, height);

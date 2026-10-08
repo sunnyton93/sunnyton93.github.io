@@ -528,7 +528,7 @@ async function collectRoomPrize(button){
   // Save the claim before paying, so reopening or reloading cannot pay it again.
   try{localStorage.setItem(roomPrizeKey(type,kind),String(reward));}
   catch{if(dialog.isConnected)announceOcean('No se pudo guardar el premio. Intenta de nuevo.');return;}
-  const saved=awardCoins(reward);
+  const saved=awardCoins(reward,`room:${type}:${kind}`);
   if(!dialog.isConnected||dialog.dataset.islandRoom!==type)return;
   SoundWorld.play(reward===100?'treasure':islandRoomToys[kind][2]);
   showRoomPrize(dialog,reward,saved);

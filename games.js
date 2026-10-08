@@ -92,14 +92,22 @@ function updateGameClock(){
  if(adventure.mode==='archery')updateArcheryCountdown();
  if(adventure.mode==='pirate')updatePirateRound();
 }
-function awardCoins(amount){
- coinBalance=Math.min(Number.MAX_SAFE_INTEGER,Math.max(coinBalance,readCoinBalance())+amount);
- let saved=true;
+function awardCoins(amount,source='game'){
+ if(!Number.isSafeInteger(amount)||amount<=0)return true;
+ try{prepareActivityCoinChange();}catch{return false;}
+ // Read the durable balance: another tab may just have deducted coins.
+ const before=readCoinBalance();
+ coinBalance=Math.min(Number.MAX_SAFE_INTEGER,before+amount);
+ // Stamp the earned reward before its balance write, so an interrupted reload
+ // cannot persist new coins with an old inactivity deadline.
+ let saved=recordActivityReward({coins:coinBalance-before,source});
  try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;}
  syncCoinHud();return saved;
 }
 function spendCoins(amount){
- coinBalance=Math.max(0,Math.max(coinBalance,readCoinBalance())-amount);
+ if(!Number.isSafeInteger(amount)||amount<=0)return true;
+ try{prepareActivityCoinChange();}catch{return false;}
+ coinBalance=Math.max(0,readCoinBalance()-amount);
  let saved=true;try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;}
  syncCoinHud();return saved;
 }
@@ -506,14 +514,18 @@ function finishAdventure(){
  if(a.mode==='memory')a.memoryReplay=a.memoryReplay||a.previousBest!==null;
  const earnsCoins=a.earnsCoins;
  a.coins=earnsCoins?reward*a.coinMultiplier:0;
- a.coinsSaved=a.coins>0?awardCoins(a.coins):true;
+ a.coinsSaved=a.coins>0?awardCoins(a.coins,`game:${a.index}-${a.mode}`):true;
  if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
+ // Preserve improvements already saved by another open window.
+ try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
  const wasComplete=islandComplete(a.index);
  const previousStars=totalStars();
  a.done=true;a.stars=a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=2?2:1;
  const key=`${a.index}-${a.mode}`;islandProgress[key]=Math.max(islandProgress[key]||0,a.stars);
  a.newlyUnlocked=oceanIslands.flatMap((island,index)=>isIslandLocked(island,previousStars)&&!isIslandLocked(island)?[index]:[]);
- try{localStorage.setItem('ximena-islands-v1',JSON.stringify(islandProgress));progressSaved=true;}catch{progressSaved=false;}
+ const addedStars=totalStars()-previousStars;
+ progressSaved=addedStars>0?recordActivityReward({stars:addedStars,source:`game:${key}`}):true;
+ try{localStorage.setItem('ximena-islands-v1',JSON.stringify(islandProgress));}catch{progressSaved=false;}
  SoundWorld.play(a.newlyUnlocked.length?'treasure':'win');
  a.islandCompleted=a.mode===lastGameMode(a.index)&&islandComplete(a.index);a.justCompletedIsland=!wasComplete&&a.islandCompleted;
 }
@@ -789,7 +801,7 @@ function blasterView(round){return `<iframe class="blaster-frame" data-play="bla
 window.addEventListener('message',event=>{
  const a=adventure,frame=document.querySelector('.blaster-frame'),data=event.data;
  if(screen!=='adventure'||a?.mode!=='blaster'||a.done||event.source!==frame?.contentWindow||event.origin!==location.origin||data?.game!=='blaster'||data.session!==a.blasterSession)return;
- if(data.type==='ready'){frame.contentWindow.postMessage({type:'configure',words:islandLessons[a.index].words},location.origin);return;}
+ if(data.type==='ready'){frame.contentWindow.postMessage({type:'configure',words:islandLessons[a.index].words},location.origin);frame.contentWindow.postMessage({type:'host-pause',paused:Boolean(document.querySelector('.inactivity-dialog[open]'))},location.origin);return;}
  if(data.type==='exit'){screen='map';render();return;}
  if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('tap');return;}
  if(!a.blasterRunning||document.hidden)return;
