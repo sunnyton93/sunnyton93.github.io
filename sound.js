@@ -1,7 +1,7 @@
 const SoundWorld = (()=>{
  const defaults={effects:.65,ambience:.35,music:.22};
  let volumes={...defaults};try{const saved=JSON.parse(localStorage.getItem('ximena-audio')||'{}');for(const key of Object.keys(defaults))if(Number.isFinite(saved[key]))volumes[key]=Math.max(0,Math.min(1,saved[key]));}catch{}
- let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,lastEffect=0,blasterNoise;
+ let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,lastEffect=0,blasterNoise,wordBank;
  const voices=new Set(),gainTargets=new WeakMap();
  function ramp(param,value){if(gainTargets.get(param)===value)return;gainTargets.set(param,value);const t=audioContext.currentTime;param.cancelScheduledValues(t);param.setTargetAtTime(value,t,.06);}
  function track(source,nodes=[]){voices.add(source);source.onended=()=>{voices.delete(source);source.disconnect();nodes.forEach(n=>n.disconnect());source.onended=null;};}
@@ -113,6 +113,45 @@ const SoundWorld = (()=>{
   ramp(music.gain,volumes.music*backgroundLevel*(inActivity?.45:1));
   if(muted||document.hidden){clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;for(const voice of voices){try{voice.stop();}catch{}voice.onended?.();}if(audioContext.state==='running')audioContext.suspend().catch(()=>{});}
   else {if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});if(volumes.music>0||(volumes.ambience>0&&screen==='map')){if(!loopTimer){nextMusicBeat=0;loopTimer=setInterval(beat,50);}}else{clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;}}
+  if(!muted&&!document.hidden&&screen==='dictionary')loadWordBank().catch(()=>{});
+ }
+ function loadWordBank(){
+  if(!wordBank)wordBank=(async()=>{
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+   try{
+    const [metadata,audio]=await Promise.all(['/audio/dictionary-en-us.json','/audio/dictionary-en-us.mp3'].map(url=>fetch(url,{signal:controller.signal})));
+    if(!metadata.ok||!audio.ok)throw new Error('Dictionary audio unavailable');
+    const [index,bytes]=await Promise.all([metadata.json(),audio.arrayBuffer()]);
+    if(index.version!==1||index.language!=='en-US'||!index.clips)throw new Error('Invalid dictionary audio index');
+    const buffer=await audioContext.decodeAudioData(bytes);
+    return {buffer,clips:index.clips};
+   }finally{clearTimeout(timer);}
+  })().catch(error=>{wordBank=null;throw error;});
+  return wordBank;
+ }
+ function speakWord(text,events){
+  let cancelled=false,source;
+  const cancel=()=>{
+   cancelled=true;
+   if(source){source.onended=null;voices.delete(source);try{source.stop();}catch{}source.disconnect();source=null;}
+  };
+  (async()=>{
+   // Resume synchronously from the tap, before fetching/decoding (Safari).
+   init();sync();
+   const [,bank]=await Promise.all([audioContext.resume(),loadWordBank()]);
+   if(cancelled)return;
+   if(muted||document.hidden||screen!=='dictionary'||audioContext.state!=='running')throw new Error('Playback interrupted');
+   const clip=bank.clips[text];
+   if(!Array.isArray(clip)||clip.length!==2||!clip.every(Number.isFinite)||clip[0]<0||clip[1]<=0||clip[0]+clip[1]>bank.buffer.duration+.03)throw new Error('Missing dictionary recording');
+   source=audioContext.createBufferSource();source.buffer=bank.buffer;
+   // Same context, effects bus, master and output as the game. Never use the
+   // separate OS speech session, which can stay on the iPad during AirPlay.
+   source.connect(effects);track(source);
+   const cleanup=source.onended;
+   source.onended=()=>{cleanup();source=null;if(!cancelled)events.end();};
+   source.start(0,clip[0],clip[1]);events.start();
+  })().catch(()=>{if(!cancelled){cancel();events.error();}});
+  return cancel;
  }
  function play(kind){
   if(muted||document.hidden)return;
@@ -152,16 +191,14 @@ const SoundWorld = (()=>{
  }
  function setVolume(key,value){if(!(key in defaults))return;volumes[key]=Math.max(0,Math.min(1,Number(value)));try{localStorage.setItem('ximena-audio',JSON.stringify(volumes));}catch{}sync();}
  function toggle(){muted=!muted;if(!muted)play('tap');else sync();}
- return {play,sync,toggle,setVolume,get volumes(){return {...volumes};}};
+ return {play,sync,toggle,setVolume,speakWord,get volumes(){return {...volumes};}};
 })();
-// Browser speech has its own output, outside Web Audio's gain nodes.
+// Recorded words share the game's audio route, including screen mirroring.
 const DictionarySpeech=(()=>{
- const synth=window.speechSynthesis;
- const supported=Boolean(synth&&typeof synth.speak==='function'&&typeof window.SpeechSynthesisUtterance==='function');
- let availableVoices=[],active=null;
- function loadVoices(){try{availableVoices=synth?.getVoices()||[];}catch{availableVoices=[];}}
+ const supported=Boolean(window.AudioContext||window.webkitAudioContext);
+ let active=null;
  function hint(){
-  if(!supported)return 'Este navegador no tiene lectura en voz alta disponible.';
+  if(!supported)return 'Este navegador no puede reproducir el audio de las palabras.';
   if(muted)return 'Activa el sonido con ♪ y toca una carta para escucharla en inglés.';
   if(SoundWorld.volumes.effects===0)return 'Sube el volumen de Efectos para escuchar las palabras.';
   return 'Toca una carta para escucharla en inglés.';
@@ -169,59 +206,35 @@ const DictionarySpeech=(()=>{
  function status(message){const element=document.querySelector('.dictionary-audio-status');if(element)element.textContent=message;}
  function clear(){
   const previous=active;active=null;
-  if(previous){clearTimeout(previous.timer);previous.card.classList.remove('is-speaking','is-speech-pending');previous.button.removeAttribute('aria-busy');}
+  if(previous){clearTimeout(previous.timer);previous.cancel?.();previous.card.classList.remove('is-speaking','is-speech-pending');previous.button.removeAttribute('aria-busy');}
  }
  function stop(message=hint()){
-  const wasActive=Boolean(active);clear();
-  if(wasActive)try{synth.cancel();}catch{}
-  status(message);
- }
- function chooseVoice(){
-  const english=availableVoices.filter(voice=>/^en(?:[-_]|$)/i.test(voice.lang));
-  const score=voice=>(voice.localService?100:0)+(/^en[-_]US$/i.test(voice.lang)?20:/^en[-_]GB$/i.test(voice.lang)?10:0)+(voice.default?1:0);
-  return english.sort((a,b)=>score(b)-score(a))[0];
+  clear();status(message);
  }
  function speak(button){
   const card=button.closest('.word-card'),text=card?.querySelector('h2')?.textContent.trim();
   if(screen!=='dictionary'||document.hidden||!button.isConnected||!text)return;
   stop();
   if(!supported||muted||SoundWorld.volumes.effects===0)return;
-  loadVoices();const voice=chooseVoice();
-  if(availableVoices.length&&!voice){status('No hay una voz en inglés disponible en este dispositivo.');return;}
-  if(voice&&!voice.localService&&!navigator.onLine){status('Esta voz necesita internet. Conéctate para escucharla.');return;}
   try{
-   const utterance=new SpeechSynthesisUtterance(text);
-   utterance.lang=voice?.lang||'en-US';if(voice)utterance.voice=voice;
-   utterance.rate=.9;utterance.pitch=1;utterance.volume=SoundWorld.volumes.effects;
-   // Retain the utterance. Late events from an old word cannot clear a new one.
-   const request={utterance,card,button,timer:null};active=request;
+   const request={card,button,timer:null,cancel:null};active=request;
    const fail=message=>{if(active===request)stop(message);};
    const timeout=()=>fail('No se pudo reproducir la palabra. Toca la carta para intentarlo de nuevo.');
    card.classList.add('is-speech-pending');button.setAttribute('aria-busy','true');status('Preparando la pronunciación…');
-   request.timer=setTimeout(timeout,8000);
-   utterance.onstart=()=>{
+   request.timer=setTimeout(timeout,18000);
+   request.cancel=SoundWorld.speakWord(text,{start(){
     if(active!==request)return;
     clearTimeout(request.timer);request.timer=setTimeout(timeout,15000);
     card.classList.remove('is-speech-pending');card.classList.add('is-speaking');button.removeAttribute('aria-busy');
     status(`Escuchando: ${text}`);
-   };
-   utterance.onend=()=>{if(active===request){clear();status(hint());}};
-   utterance.onerror=event=>{
-    const message=['language-unavailable','voice-unavailable'].includes(event.error)?'No hay una voz en inglés disponible en este dispositivo.':
-     event.error==='network'?'Esta voz necesita conexión. Revisa internet e inténtalo de nuevo.':
-     event.error==='not-allowed'?'El navegador bloqueó la voz. Toca la carta para intentarlo de nuevo.':
-     'No se pudo reproducir la palabra. Toca la carta para intentarlo de nuevo.';
-    fail(message);
-   };
-   // Preserve Safari's user activation: no asynchronous work before speak().
-   // With an initially empty voice list, request English from the browser.
-   synth.cancel();if(synth.paused)synth.resume();synth.speak(utterance);
+   },end(){if(active===request){clear();status(hint());}},error(){
+    fail(navigator.onLine?'No se pudo cargar la pronunciación. Toca la carta para intentarlo de nuevo.':'Conéctate para descargar la pronunciación y vuelve a tocar la carta.');
+   }});
   }catch{stop('No se pudo reproducir la palabra. Toca la carta para intentarlo de nuevo.');}
  }
  function sync(){
   if(active&&(muted||document.hidden||screen!=='dictionary'||!active.card.isConnected||SoundWorld.volumes.effects===0))stop();
  }
- if(supported){loadVoices();synth.addEventListener?.('voiceschanged',loadVoices);}
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
  window.addEventListener('pagehide',()=>stop());
  return {speak,stop,sync,hint};
