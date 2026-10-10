@@ -99,10 +99,11 @@
     <div id="startScreen" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300">
         <h1 class="text-4xl md:text-6xl text-blue-500 mb-4 text-center drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]">🚀 Escribe</h1>
         <p class="text-gray-300 mb-8 text-center text-sm md:text-base leading-loose max-w-lg">
-            Adivina la palabra del emoji en <span class="text-yellow-400">Inglés</span> y escríbela para destruirlo.<br><br>
+            Adivina la palabra de la imagen en <span class="text-yellow-400">Inglés</span> y escríbela para destruirlo.<br><br>
             ¡Destruye 10 asteroides para ganar!
         </p>
         <button id="startButton" type="button" disabled>¡A jugar! ➜</button>
+        <p id="imageLoadStatus" role="status" style="font:14px sans-serif;color:#cbd5e1;margin-top:16px"></p>
     </div>
 
     <div id="gameOverScreen" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center bg-red-950/90 backdrop-blur-sm transition-opacity duration-300">
@@ -142,13 +143,29 @@
         window.addEventListener('resize', resize);
 
 
-        // Dictionary of English words and Emojis
-        let emojiDictionary = {}, wordLabels = {}, emojiKeys = [];
-        window.addEventListener('message',event=>{
-            if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='configure'||configured)return;
-            for(const word of event.data.words){const key=word.en.toUpperCase().replace(/[^A-Z]/g,'');if(key){emojiDictionary[key]=word.icon;wordLabels[key]=word.en;}}
-            emojiKeys=Object.keys(emojiDictionary);configured=emojiKeys.length>0;
-            document.querySelector('#startButton').disabled=!configured;
+        // Decode the illustrated clues before enabling the timed canvas game.
+        let emojiDictionary = {}, wordLabels = {}, emojiKeys = [], wordImages = {};
+        let configuring=false, nextImageAttempt=0;
+        window.addEventListener('message',async event=>{
+            if(event.source!==parent||event.origin!==location.origin||event.data?.type!=='configure'||configured||configuring||Date.now()<nextImageAttempt)return;
+            configuring=true;
+            const status=document.querySelector('#imageLoadStatus');
+            status.textContent='Preparando las imágenes…';
+            try{
+                const images={};
+                await Promise.all(event.data.words.map(async word=>{
+                    const key=word.en.toUpperCase().replace(/[^A-Z]/g,'');
+                    if(!key)return;
+                    emojiDictionary[key]=word.icon;wordLabels[key]=word.en;
+                    if(word.image){const image=new Image();image.src=word.image;await image.decode();images[key]=image;}
+                }));
+                wordImages=images;emojiKeys=Object.keys(emojiDictionary);configured=emojiKeys.length>0;
+                document.querySelector('#startButton').disabled=!configured;
+                status.textContent='';
+            }catch{
+                status.textContent='No se pudieron cargar las imágenes. Volviendo a intentar…';
+                nextImageAttempt=Date.now()+3000;
+            }finally{configuring=false;}
         });
         const readyTimer=setInterval(()=>{
             if(configured){clearInterval(readyTimer);return;}
@@ -299,11 +316,12 @@
                 ctx.fill();
                 ctx.stroke();
                 
-                // Dibujar Emoji
+                // Draw the same illustration used by the dictionary and other games.
                 ctx.font = '30px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(this.emoji, 0, 0);
+                if(wordImages[this.word])ctx.drawImage(wordImages[this.word],-21,-21,42,42);
+                else ctx.fillText(this.emoji, 0, 0);
 
                 ctx.restore();
 
@@ -598,7 +616,12 @@
                         // Perder vida
                         lives--;send('mistake');
                         const correction=document.querySelector('#correction');
-                        correction.textContent=enemy.emoji+' '+wordLabels[enemy.word];
+                        correction.replaceChildren();
+                        if(wordImages[enemy.word]){
+                            const image=wordImages[enemy.word].cloneNode();
+                            image.alt='';image.width=38;image.height=38;image.style.cssText='object-fit:contain;vertical-align:middle;margin-right:8px';
+                            correction.append(image,document.createTextNode(wordLabels[enemy.word]));
+                        }else correction.textContent=enemy.emoji+' '+wordLabels[enemy.word];
                         correction.hidden=false;clearTimeout(correction.timer);correction.timer=setTimeout(()=>correction.hidden=true,2600);
                         updateLivesUI();
                         

@@ -253,9 +253,28 @@ function clearConnectDrag(){
  if(drag?.button.hasPointerCapture(drag.pointerId))drag.button.releasePointerCapture(drag.pointerId);
 }
 const ARCHERY_WINDOW_MS=6000;
+// A slow first download must not spend the player's answer time on blank clues.
+function ensureGameWordIcons(round,start){
+ const images=preloadWordIcons(islandLessons[round.index].words);
+ if(images.every(image=>image.complete&&image.naturalWidth))return true;
+ if(round.iconsLoading)return false;
+ round.iconsLoading=true;
+ const action={archery:'archery-start',platforms:'platform-start',pirate:'pirate-start'}[round.mode];
+ const button=document.querySelector(`[data-play="${action}"]`);
+ if(button){button.disabled=true;button.textContent='Preparando imágenes…';}
+ Promise.all(images.map(image=>image.decode())).then(()=>{
+  round.iconsLoading=false;
+  if(adventure===round&&screen==='adventure'&&!round.done)start();
+ }).catch(()=>{
+  round.iconsLoading=false;
+  if(adventure===round&&screen==='adventure'&&button?.isConnected){button.disabled=false;button.textContent='Volver a cargar las imágenes';}
+ });
+ return false;
+}
 function beginArchery(){
  const round=adventure;
  if(screen!=='adventure'||round?.mode!=='archery'||round.archeryStarted||round.done)return;
+ if(!ensureGameWordIcons(round,beginArchery))return;
  round.archeryStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
  round.balloons=archeryOptions(round);resetArcheryWindow(round);
  startGameClock();
@@ -424,7 +443,7 @@ document.addEventListener('click',event=>{
 function archeryView(round,lesson){
  if(!round.archeryStarted)return `<div class="archery-intro"><div class="archery-intro-art" aria-hidden="true">🏹 <span>🎈</span></div><h2>¡Apunta y atrapa la palabra!</h2><button class="primary archery-start" data-play="archery-start">Iniciar <span aria-hidden="true">➜</span></button></div>`;
  const word=lesson.words[round.order[round.attempt%round.order.length]];
- return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${word.icon}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
+ return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${wordIcon(word)}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
 }
 function paintArcheryShot(impact=false){
  const shot=archeryShot;if(!shot||adventure!==shot.round)return;
@@ -517,6 +536,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  if(luceroRouteClosed(oceanIslands[index])&&!developerAccess){openLuceroGate();return;}
  if(isIslandLocked(oceanIslands[index])&&!developerAccess){lockedIslandIndex=index;cancelGameTurn();screen='locked';return;}
  cancelGameTurn();
+ preloadWordIcons(islandLessons[index].words);
  const wordIds=islandLessons[index].words.map(word=>word.id);
  const memoryVocabulary=mode==='memory'?memoryVocabularyForIsland(index):islandLessons[index].words;
  const memoryWords=shuffle(memoryVocabulary.map(word=>word.id));
@@ -678,10 +698,10 @@ function adventureView(){
  if(a.done&&a.mode==='memory'){
   content=`<div class="island-result"><div class="lesson-icon">${goldCoinIcon()}</div><h2>¡Bonus completado!</h2>${a.memoryReplay?'<p>Ya habías completado este bonus en esta isla. Esta partida no otorga monedas.</p>':coinRewardView(a)}${resultActions()}</div>`;
  }else if(a.done){
-  content=`<div class="island-result"><div class="lesson-icon">${lesson.words[0].icon}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
+  content=`<div class="island-result"><div class="lesson-icon">${wordIcon(lesson.words[0])}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
  }else if(a.mode==='find'){
   const word=lesson.words[a.order[a.step]];
-  content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${w.icon}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
+  content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${wordIcon(w)}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
  }else if(a.mode==='connect'){
   content=`<div class="connect-board">${connectLinks(a)}${['left','right'].map(side=>`<div>${a[side].map(id=>`<button class="pair-card ${a.matched.includes(id)?'is-matched':''} ${a.picks.includes(`${side}-${id}`)?'is-picked':''} ${a.wrong.includes(`${side}-${id}`)?'is-wrong':''}" data-play="connect" data-side="${side}" data-id="${id}" aria-pressed="${a.picks.includes(`${side}-${id}`)}" ${a.pending||a.matched.includes(id)?'disabled':''}><span class="pair-orb" aria-hidden="true">${a.matched.includes(id)?'✓':a.picks.includes(`${side}-${id}`)?'•':'◇'}</span><span class="pair-word">${lesson.words[id][side==='left'?'en':'es']}</span></button>`).join('')}</div>`).join('')}</div>`;
  }else{
@@ -735,20 +755,20 @@ function handleAdventure(button){
  const same=candidates.find(el=>el.dataset.play===action&&el.dataset.id===button.dataset.id&&el.dataset.side===button.dataset.side&&el.dataset.mode===button.dataset.mode);
  (document.querySelector('.unlock-close')||same||document.querySelector('.result-action,.island-game .primary:not([hidden])')||candidates[0])?.focus({preventScroll:true});
 }
-function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?lesson.words[0].icon:'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
+function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
 
 // Banderas: one clock drives every phase and pauses with the shared game clock.
 function beginPirate(){
  const round=adventure;
  if(screen!=='adventure'||round?.mode!=='pirate'||round.pirateStarted||round.done)return;
+ if(!ensureGameWordIcons(round,beginPirate))return;
  round.pirateStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
  preparePirateRound(round);startGameClock();
  SoundWorld.play('tap');document.querySelector('.pirate-game')?.focus({preventScroll:true});
 }
 function preparePirateRound(round){
  const words=islandLessons[round.index].words,word=words[round.order[round.attempt%round.order.length]];
- const picture=value=>value.replace(/[\uFE0E\uFE0F]/g,'');
- const other=shuffle(words.filter(candidate=>candidate.id!==word.id&&candidate.en!==word.en&&picture(candidate.icon)!==picture(word.icon)))[0];
+ const other=shuffle(words.filter(candidate=>candidate.id!==word.id&&candidate.en!==word.en&&wordIconKey(candidate)!==wordIconKey(word)))[0];
  const correctSide=Math.random()<.5?0:1;
  const now=elapsedGameMs(round),answerWindow=3000-Math.min(round.step,7)*100;
  round.pirate={phase:'choose',phaseAt:now,window:answerWindow,deadline:now+answerWindow,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false};
@@ -812,17 +832,17 @@ function pirateCaptain(){return `<svg data-static-art="pirate-captain" class="pi
  </g></svg>`;}
 function pirateFlag(word,side,p){
  const corrected=p&&['success','correct'].includes(p.phase),right=corrected&&side===p.correctSide;
- return `<div class="pirate-flag flag-${side?'right':'left'} ${right?'flag-correct':''} ${corrected&&!right?'flag-muted':''}"><div class="flag-cloth"><span class="flag-picture" role="img" aria-label="${word.es}">${word.icon}</span><b class="flag-check" aria-hidden="true">✓</b></div><i class="flag-pole" aria-hidden="true"></i></div>`;
+ return `<div class="pirate-flag flag-${side?'right':'left'} ${right?'flag-correct':''} ${corrected&&!right?'flag-muted':''}"><div class="flag-cloth"><span class="flag-picture" role="img" aria-label="${word.es}">${wordIcon(word)}</span><b class="flag-check" aria-hidden="true">✓</b></div><i class="flag-pole" aria-hidden="true"></i></div>`;
 }
 function pirateView(round,lesson){
  const p=round.pirate,started=round.pirateStarted,word=lesson.words[started?p.word:round.order[0]];
  const phase=started?p.phase:'intro';
- const options=started?p.options: [word.id,lesson.words.find(w=>w.icon!==word.icon).id];
+ const options=started?p.options: [word.id,lesson.words.find(w=>wordIconKey(w)!==wordIconKey(word)).id];
  const correct=started&&phase==='correct';
  return `<div class="pirate-game pirate-${phase}" tabindex="-1" role="group" aria-label="Banderas del pirata"><div class="pirate-heading"><span class="pirate-kicker">${started?'CAPITÁN BRISA':'BANDERAS DEL PIRATA'}</span><h2 class="pirate-word">${started?word.en:'¡Elige tu bandera!'}</h2>${!started?'<p>Mira la palabra. Toca el lado de su imagen.</p>':''}</div>
  <div class="pirate-stage"><div class="pirate-sea" aria-hidden="true"><i></i><i></i></div><div class="pirate-deck" aria-hidden="true"></div><div class="pirate-ropes" aria-hidden="true"></div>${pirateCaptain()}${options.map((id,side)=>pirateFlag(lesson.words[id],side,started?p:null)).join('')}
 
- <div class="pirate-confetti" aria-hidden="true">${Array.from({length:12},(_,i)=>`<i style="--piece:${i};--confetti-x:${-190+i*35}px;--confetti-y:${-100+(i%4)*40}px">${i%3?'✦':'●'}</i>`).join('')}</div><div class="pirate-reaction" role="status">${phase==='success'?'¡Muy bien! ★':phase==='miss'?'¡Ups!':correct?`<span aria-hidden="true">${word.icon}</span> ${word.en} <small>${word.es}</small>`:''}</div></div>
+ <div class="pirate-confetti" aria-hidden="true">${Array.from({length:12},(_,i)=>`<i style="--piece:${i};--confetti-x:${-190+i*35}px;--confetti-y:${-100+(i%4)*40}px">${i%3?'✦':'●'}</i>`).join('')}</div><div class="pirate-reaction" role="status">${phase==='success'?'¡Muy bien! ★':phase==='miss'?'¡Ups!':correct?`<span aria-hidden="true">${wordIcon(word)}</span> ${word.en} <small>${word.es}</small>`:''}</div></div>
  ${started?`<div class="pirate-time" role="progressbar" aria-label="Tiempo para elegir" aria-valuemin="0" aria-valuemax="${Math.ceil(p.window/1000)}" aria-valuenow="${phase==='choose'?Math.ceil(Math.max(0,p.deadline-elapsedGameMs(round))/1000):Math.ceil(p.window/1000)}"><i></i></div><div class="pirate-controls">${[0,1].map(side=>`<button type="button" class="pirate-choice choice-${side?'right':'left'}" data-play="pirate-choice" data-side="${side}" ${phase!=='choose'?'disabled':''} aria-label="Elegir la bandera ${side?'derecha':'izquierda'}"><span aria-hidden="true">${side?'→':'←'}</span><b>${side?'Derecha':'Izquierda'}</b></button>`).join('')}</div>`:'<div class="pirate-start-panel"><span>8 aciertos · toca izquierda o derecha</span><button class="primary" data-play="pirate-start">¡A jugar! <span aria-hidden="true">➜</span></button></div>'}
  </div>`;
 }

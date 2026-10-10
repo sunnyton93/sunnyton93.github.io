@@ -1,6 +1,5 @@
 // Salta: world coordinates stay independent of the responsive SVG projection.
 const platformCenters=[[300,220],[154,220],[227,94],[373,94],[446,220],[373,346],[227,346]];
-const separatedPlatformCenters=platformCenters.map(([x,y])=>[300+(x-300)*1.24,220+(y-220)*1.24]);
 const platformColors=['#ffc653','#ff7eaa','#70b8ff','#b69aff','#64dca5','#ff9c62','#59d9e4'];
 const platformMarks=['✦','●','◆','☾','✿','▲','≋'];
 const platformKeys=new Set();
@@ -19,6 +18,7 @@ function getPlatformView(){
   particles:[...scene.querySelectorAll('.platform-particle')].map(node=>({node,star:node.querySelector('path'),circle:node.querySelector('circle'),item:null,active:node.style.opacity!=='0'})),
   actor:one('.platform-player'),pose:one('.explorer-pose'),shadow:one('.platform-shadow'),splash:one('.platform-splash'),ripple:one('.platform-touch-ring'),halo:one('.platform-landing-ring'),celebration:one('.platform-celebration'),
   clock:one('.platform-countdown'),timeFill:one('.platform-time-fill'),phase:one('.platform-phase'),owl:one('.platform-owl'),jump:one('.platform-jump'),controls:[...game.querySelectorAll('[data-direction]')],joystick:one('[data-platform-joystick]'),thumb:one('.platform-joystick-thumb')};
+ platformDom.clip=scene.querySelector('#salta-clip rect');
  platformDom.rig=Object.fromEntries(['body','head','hair','fringe','eyes','brows','smile','arm-left','arm-right','forearm-left','forearm-right','leg-left','leg-right','shin-left','shin-right'].map(part=>[part,one(`.explorer-${part}`)]));
  platformDom.joystickRadius=platformDom.joystick.clientWidth*.3;
  return platformDom;
@@ -33,22 +33,13 @@ function clearPlatformControls(){
 }
 function cancelPlatforms(){cancelAnimationFrame(platformFrame);platformFrame=null;clearPlatformControls();invalidatePlatformView();platformArtwork={};}
 function platformAt(x,y,centers=platformCenters){
- // The explorer has feet; compare squared distances without allocating every frame.
- let nearest=-1,distance=Infinity;
- for(let index=0;index<centers.length;index++){
-  const [cx,cy]=centers[index],dx=Math.abs(x-cx),dy=Math.abs(y-cy),candidate=dx*dx+dy*dy;
-  if(dx<=79&&dx+Math.sqrt(3)*dy<=158&&candidate<distance){nearest=index;distance=candidate;}
- }
- return nearest;
+ return SaltaPhysics.at(x,y,centers);
 }
-function platformWindow(round){return 7000-Math.min(7,round.step)*2000/7;}
+function platformWindow(round){return round.step>=8?5600:7000-Math.min(7,round.step)*2000/7;}
 function preparePlatforms(round,respawn=false){
  const p=round.platform,now=elapsedGameMs(round),correct=round.order[round.attempt%round.order.length];
- // Move the supporting platform and its passenger together when round five opens the gaps.
- const previousCenters=p.centers||platformCenters,occupiedBefore=platformAt(p.x,p.y,previousCenters);
- p.centers=round.step>=6?separatedPlatformCenters:platformCenters;
- if(respawn){p.x=300;p.y=220;}
- else if(previousCenters!==p.centers&&occupiedBefore>=0){p.x+=p.centers[occupiedBefore][0]-previousCenters[occupiedBefore][0];p.y+=p.centers[occupiedBefore][1]-previousCenters[occupiedBefore][1];}
+ // Retarget the decks; the simulation opens gaps smoothly with its passenger aboard.
+ SaltaPhysics.configure(p,round.step,now,respawn);
  const wordIds=islandLessons[round.index].words.map(word=>word.id),previous=p.options;
  p.options=shuffle([correct,...shuffle(wordIds.filter(id=>id!==correct)).slice(0,6)]);
  // Change the answer set as well as its positions on each new clue.
@@ -71,8 +62,9 @@ function preparePlatforms(round,respawn=false){
 function beginPlatforms(){
  const round=adventure;
  if(screen!=='adventure'||round?.mode!=='platforms'||round.platformStarted||round.done)return;
+ if(!ensureGameWordIcons(round,beginPlatforms))return;
  round.platformStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
- round.platform={x:300,y:220,z:0};
+ round.platform=SaltaPhysics.create(platformCenters);
  clearPlatformControls();preparePlatforms(round,true);
  startGameClock();SoundWorld.play('tap');
  platformFrame=requestAnimationFrame(tickPlatforms);
@@ -81,32 +73,29 @@ function beginPlatforms(){
 function jumpPlatforms(){
  if(!activePlatforms()||document.hidden)return;
  const p=adventure.platform;
- if(!['prepare','seek','collapse'].includes(p.phase)||p.jumpAt!==null)return;
- p.launchOffset={...p.contactOffset};p.jumpAt=elapsedGameMs(adventure);p.gapMs=0;platformBurst(p,p.jumpAt,p.x,114+p.y*.68,'sand',10);SoundWorld.play('jump');
+ if(!SaltaPhysics.jump(p,elapsedGameMs(adventure)))return;
+ p.launchOffset={...p.contactOffset};platformBurst(p,p.jumpAt,p.x,114+p.y*.68,'sand',10);SoundWorld.play('jump');
 }
 function fallPlatforms(round,now){
  const p=round.platform;if(p.phase==='fall')return;
- round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.fallAt=now;p.jumpAt=null;
+ round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.fallAt=now;p.jumpAt=null;p.airborne=false;p.rider=-1;
  round.notice=`¡Al agua! La palabra era ${islandLessons[round.index].words[round.order[round.attempt%round.order.length]].en}. ¡Vamos con otra palabra!`;
  clearPlatformControls();platformBurst(p,now,p.x,115+p.y*.68,'water',24);SoundWorld.play('splash');
 
 }
 function tickPlatforms(){
  platformFrame=null;if(!activePlatforms()||document.hidden)return;
- const round=adventure,p=round.platform,now=elapsedGameMs(round),dt=Math.min(40,Math.max(0,now-p.last));p.last=now;
+ const round=adventure,p=round.platform,now=elapsedGameMs(round),dt=Math.min(100,Math.max(0,now-p.last));p.last=now;
+ let right=platformKeys.has('right'),left=platformKeys.has('left'),down=platformKeys.has('down'),up=platformKeys.has('up');
+ for(const direction of platformPointers.values()){right ||= direction==='right';left ||= direction==='left';down ||= direction==='down';up ||= direction==='up';}
+ const landedAt=p.landedAt;
+ SaltaPhysics.advance(p,dt/1000,{x:Number(right)-Number(left)+platformJoystick.x,y:Number(down)-Number(up)+platformJoystick.y});
+ if(p.landedAt!==landedAt)platformBurst(p,now,p.x,114+p.y*.68,'sand',8);
+ if(p.fell&&p.phase!=='fall')fallPlatforms(round,now);
  if(!document.hidden){
   if(['prepare','seek','collapse'].includes(p.phase)){
-   let right=platformKeys.has('right'),left=platformKeys.has('left'),down=platformKeys.has('down'),up=platformKeys.has('up');
-   for(const direction of platformPointers.values()){right ||= direction==='right';left ||= direction==='left';down ||= direction==='down';up ||= direction==='up';}
-   const dx=Number(right)-Number(left)+platformJoystick.x,dy=Number(down)-Number(up)+platformJoystick.y,length=Math.hypot(dx,dy);
-   const strength=Math.min(1,length);
-   p.walking=length>0;p.strength=strength;p.moveX=length?dx/length*strength:0;p.moveY=length?dy/length*strength:0;if(Math.abs(dx)>.01)p.facing=dx<0?-1:1;
-   if(length){const speed=p.jumpAt===null?185:220;p.x+=dx/length*strength*speed*dt/1000;p.y+=dy/length*strength*speed*dt/1000;}
-   if(length&&p.jumpAt===null&&platformAt(p.x,p.y,p.centers)>=0&&now-p.lastTrail>180){platformBurst(p,now,p.x,114+p.y*.68,'sand',2);p.lastTrail=now;}
-   p.x=Math.max(30,Math.min(570,p.x));p.y=Math.max(5,Math.min(435,p.y));
-   if(p.jumpAt!==null){const t=Math.max(0,Math.min(1,(now-p.jumpAt-55)/595));p.z=256*t*(1-t);if(now-p.jumpAt>=650){p.jumpAt=null;p.z=0;const landingTile=platformAt(p.x,p.y,p.centers);if(landingTile>=0&&!(p.phase==='collapse'&&now-p.phaseAt>=260&&landingTile!==p.safe)){p.landedAt=now;platformBurst(p,now,p.x,114+p.y*.68,'sand',8);}}}
-   const support=platformAt(p.x,p.y,p.centers),sunk=p.phase==='collapse'&&now-p.phaseAt>=260;
-   if(p.jumpAt===null&&(support<0||(sunk&&support!==p.safe))){p.gapMs+=dt;if(p.gapMs>(round.step>=6?65:95))fallPlatforms(round,now);}else p.gapMs=0;
+   if(p.walking&&!p.airborne&&p.rider>=0&&now-p.lastTrail>180){platformBurst(p,now,p.x,114+p.y*.68,'sand',2);p.lastTrail=now;}
+   const support=p.airborne?-1:platformAt(p.x,p.y,p.centers);
    if(p.phase==='prepare'&&now-p.phaseAt>=1100){p.phase='seek';p.phaseAt=now;SoundWorld.play('tap');}
    if(p.phase==='seek'&&now>=p.deadline){p.phase='collapse';p.phaseAt=now;SoundWorld.play('sink');}
    if(p.phase==='collapse'&&now-p.phaseAt>=1100){
@@ -123,11 +112,6 @@ function tickPlatforms(){
  }
  drawPlatforms(round,now);platformFrame=requestAnimationFrame(tickPlatforms);
 }
-// Damped springs use the active game clock, so floating and poses also pause with the game.
-function springPlatform(state,key,target,seconds,stiffness=105,damping=14){
- const velocity=`${key}Velocity`,steps=Math.max(1,Math.ceil(seconds*120)),dt=seconds/steps;
- for(let i=0;i<steps;i++){state[velocity]+=(stiffness*(target-state[key])-damping*state[velocity])*dt;state[key]+=state[velocity]*dt;}
-}
 function platformEdge(p,index){
  if(index<0)return {amount:0,x:0,y:0};
  const dx=p.x-p.centers[index][0],dy=p.y-p.centers[index][1];
@@ -142,34 +126,27 @@ function platformEdge(p,index){
 function updatePlatformMotion(p,now,motion){
  const dt=Math.min(.04,Math.max(0,(now-(p.motionAt??now))/1000));p.motionAt=now;
  const occupied=platformAt(p.x,p.y,p.centers),collapsing=['collapse','success','fall'].includes(p.phase);
- const grounded=p.jumpAt===null&&p.phase!=='fall'&&occupied>=0&&!(collapsing&&occupied!==p.safe&&now-p.phaseAt>=260);
+ const grounded=!p.airborne&&p.phase!=='fall'&&occupied>=0&&!(collapsing&&occupied!==p.safe&&now-p.phaseAt>=260);
  const support=grounded?occupied:-1,edge=grounded?platformEdge(p,support):{amount:0,x:0,y:0};
- const rig=p.rig,blend=1-Math.exp(-dt*15),speed=p.walking&&grounded?(p.strength||0):0;
- rig.run+=(speed-rig.run)*blend;rig.balance+=(edge.amount-rig.balance)*(1-Math.exp(-dt*20));
+ const rig=p.rig,blend=1-Math.exp(-dt*15),speed=grounded?Math.min(1,Math.hypot(p.vx,p.vy)/185):0;
+ rig.run+=(speed-rig.run)*blend;rig.balance+=(Math.max(edge.amount,p.sliding ? .55 : 0)-rig.balance)*(1-Math.exp(-dt*20));
  rig.gait+=dt*speed*185/94*Math.PI*2;
- const landed=p.landedAt!==null&&p.lastImpactAt!==p.landedAt;
- if(support>=0&&(support!==p.support||landed)){
-  const state=p.floats[support];state.depthVelocity+=landed?42:15;
-  state.rollVelocity+=(p.x-p.centers[support][0])*(landed ? .16 : .06);state.rippleAt=now;
- }
- if(landed)p.lastImpactAt=p.landedAt;
+ if(support>=0&&support!==p.support)p.floats[support].rippleAt=now;
  if(p.support>=0&&support!==p.support)p.floats[p.support].rippleAt=now;
  p.support=support;
  let passengerX=0,passengerY=0;
  const surfaces=p.floats.map((state,index)=>{
   const loaded=index===support,dx=loaded?p.x-p.centers[index][0]:0,dy=loaded?p.y-p.centers[index][1]:0;
-  springPlatform(state,'depth',loaded?4.8+Math.sin(rig.gait*2)*rig.run*.45:0,dt);
-  springPlatform(state,'roll',loaded?dx/79*3.2:0,dt,85,12);
-  springPlatform(state,'pitch',loaded?dy/91*1.8:0,dt,85,12);
   const wave=now/1250+index*1.17;
-  const lift=motion?Math.sin(wave)*1.65+Math.sin(wave*.71+index)*.65+state.depth:0;
-  const roll=motion?Math.sin(wave*.83+index)*.65+state.roll:0;
-  const drift=motion?Math.sin(wave*.68+index)*.65:0,scale=motion?1+state.pitch*.008:1;
-  if(loaded){const radians=roll*Math.PI/180;passengerX=drift+dx*(Math.cos(radians)-1)-dy*.68*scale*Math.sin(radians);passengerY=lift+dx*Math.sin(radians)+dy*.68*(scale*Math.cos(radians)-1);}
-  return {lift,roll,drift,scale,wave,rippleAge:(now-state.rippleAt)/950};
+  const bob=motion?Math.sin(wave)*1.2+Math.sin(wave*.71+index)*.45:0;
+  const roll=state.roll*Math.PI/180,pitch=state.pitch*Math.PI/180;
+  const a=Math.cos(roll),b=Math.sin(roll),d=Math.cos(pitch)+Math.sin(pitch)/.68;
+  if(loaded){passengerX=dx*(a-1);passengerY=bob;}
+  // Essential tilt remains visible with reduced motion; only decorative bobbing stops.
+  return {lift:state.depth+bob,a,b,d,wave,rippleAge:(now-state.rippleAt)/950};
  });
  if(grounded)p.contactOffset={x:passengerX,y:passengerY};
- if(motion&&p.jumpAt!==null){const carry=Math.max(0,1-(now-p.jumpAt)/650);passengerX=p.launchOffset.x*carry;passengerY=p.launchOffset.y*carry;}
+ if(p.airborne){const carry=Math.max(0,1-(now-p.jumpAt)/650);passengerX=p.launchOffset.x*carry;passengerY=motion?p.launchOffset.y*carry:0;}
  return {surfaces,passengerX,passengerY,edge,dt};
 }
 function drawPlatformExplorer(view,p,now,motion,state){
@@ -222,6 +199,8 @@ function drawPlatforms(round,now){
  const view=getPlatformView();if(!view)return;
  const {scene,game}=view;
  const p=round.platform,remaining=Math.max(0,p.deadline-now),falling=p.phase==='fall';
+ const sceneHeight=(425+Math.max(0,p.spread-1)*210).toFixed(2);
+ platformAttribute(scene,'viewBox',`0 0 600 ${sceneHeight}`);platformAttribute(view.clip,'height',sceneHeight);
  const motion=!calm&&!platformMotionPreference.matches;
  scene.classList.toggle('is-calm',!motion);
  game.classList.toggle('is-paused',document.hidden);game.classList.toggle('is-calm',!motion);
@@ -239,15 +218,17 @@ function drawPlatforms(round,now){
   tile.classList.toggle('is-standing',p.support===index);
   tile.classList.toggle('is-inspected',p.hovered===index);
   wake.classList.toggle('is-disturbed',sunk);
-  const {lift,roll,drift,scale,wave,rippleAge}=dynamics.surfaces[index];
-  platformAttribute(surface,'transform',`translate(${drift.toFixed(2)} ${lift.toFixed(2)}) rotate(${roll.toFixed(2)}) scale(1 ${scale.toFixed(4)})`);
+  const {lift,a,b,d,wave,rippleAge}=dynamics.surfaces[index];
+  const [cx,cy]=p.centers[index];platformAttribute(tile.parentElement,'transform',`translate(${cx.toFixed(2)} ${(110+cy*.68).toFixed(2)})`);
+  platformAttribute(surface,'transform',`matrix(${a.toFixed(4)} ${b.toFixed(4)} 0 ${d.toFixed(4)} 0 ${lift.toFixed(2)})`);
   platformAttribute(wake,'rx',84+(motion?Math.sin(wave)*3:0));platformAttribute(wake,'ry',49+(motion?Math.sin(wave)*1.5:0));
   if(motion&&rippleAge>=0&&rippleAge<1){platformAttribute(ripple,'transform',`translate(0 26) scale(${1+rippleAge*.32})`);ripple.style.opacity=(1-rippleAge)*.6;}else ripple.style.opacity=0;
 
  });
  const elapsed=falling?Math.min(1,(now-p.fallAt)/600):0;
  const actor=view.actor;
- platformAttribute(actor,'transform',`translate(${(p.x+dynamics.passengerX).toFixed(2)} ${(110+p.y*.68-p.z+elapsed*65+dynamics.passengerY).toFixed(2)})`);
+ const drop=falling?Math.min(80,SaltaPhysics.GRAVITY*((now-p.fallAt)/1000)**2/2):0;
+ platformAttribute(actor,'transform',`translate(${(p.x+dynamics.passengerX).toFixed(2)} ${(110+p.y*.68-p.height+drop+dynamics.passengerY).toFixed(2)})`);
  actor.style.opacity=1-elapsed;actor.classList.toggle('is-walking',p.walking&&!falling);actor.classList.toggle('is-jumping',p.jumpAt!==null);actor.classList.toggle('is-celebrating',p.phase==='success');actor.classList.toggle('is-falling',falling);
  const landing=p.landedAt===null?1:Math.min(1,(now-p.landedAt)/220);
  drawPlatformExplorer(view,p,now,motion,dynamics);
@@ -375,11 +356,11 @@ function platformTile(lesson,p,x,y,i){
  <g class="platform-tile-glint" fill="#fffde7"><path d="m-60-30 2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z"/></g>
  </g></g><path class="platform-waterline" d="M-78 46q23 18 57 23m43 0q32-7 55-23" fill="none" stroke="#d9fff2" stroke-width="2.5" stroke-linecap="round" opacity=".65"/></g>`;}
 
-function platformScene(round,lesson){const p=round.platform;return `<svg class="platform-scene" viewBox="0 0 600 ${round.step>=6?450:425}" tabindex="0" role="group" aria-label="Escenario de Salta. Muévete con las flechas o WASD y salta con Espacio."><defs><clipPath id="salta-clip"><rect width="600" height="${round.step>=6?450:425}" rx="28"/></clipPath></defs><g clip-path="url(#salta-clip)"><g class="platform-islands">${p.centers.map(([x,y],i)=>({x,y,i})).sort((a,b)=>a.y-b.y||a.x-b.x).map(({x,y,i})=>platformTile(lesson,p,x,y,i)).join('')}</g><g class="platform-celebration" aria-hidden="true"><ellipse rx="65" ry="42"/><ellipse rx="78" ry="51"/><path d="m-15-78 10 10 22-25"/></g><ellipse class="platform-shadow" cx="300" cy="260" rx="20" ry="8" fill="#173f52" opacity=".26"/><g class="platform-landing-ring" fill="none" stroke="#fff2c3" stroke-width="2" opacity="0"><ellipse rx="22" ry="9"/></g><g class="platform-player" transform="translate(300 259)" aria-label="Tu exploradora">${platformExplorer()}</g><g class="platform-splash" aria-hidden="true"><ellipse rx="37" ry="13"/><ellipse rx="53" ry="21" stroke-width="2"/><path d="M-30 0-45-24M-12-3-20-35M13-3 23-34M30 0 45-21"/></g><g class="platform-touch-ring" opacity="0" fill="none" stroke="#e1fff1" stroke-width="2" pointer-events="none"><ellipse rx="24" ry="12"/><ellipse rx="34" ry="17"/></g><g class="platform-particles" aria-hidden="true" pointer-events="none">${Array.from({length:40},()=>'<g class="platform-particle" opacity="0"><circle r="1"/><path d="M0-1.5.4-.4 1.5 0 .4.4 0 1.5-.4.4-1.5 0-.4-.4Z"/></g>').join('')}</g><g class="platform-sparkles" aria-hidden="true" fill="#fffbd2"><path d="m40 200 3 7 7 3-7 3-3 7-3-7-7-3 7-3m490 88 3 7 7 3-7 3-3 7-3-7-7-3 7-3"/></g></g></svg>`;}
+function platformScene(round,lesson){const p=round.platform;return `<svg class="platform-scene" viewBox="0 0 600 ${425+Math.max(0,p.spread-1)*210}" tabindex="0" role="group" aria-label="Escenario de Salta. Muévete con las flechas o WASD y salta con Espacio."><defs><clipPath id="salta-clip"><rect width="600" height="${425+Math.max(0,p.spread-1)*210}" rx="28"/></clipPath></defs><g clip-path="url(#salta-clip)"><g class="platform-islands">${p.centers.map(([x,y],i)=>({x,y,i})).sort((a,b)=>a.y-b.y||a.x-b.x).map(({x,y,i})=>platformTile(lesson,p,x,y,i)).join('')}</g><g class="platform-celebration" aria-hidden="true"><ellipse rx="65" ry="42"/><ellipse rx="78" ry="51"/><path d="m-15-78 10 10 22-25"/></g><ellipse class="platform-shadow" cx="300" cy="260" rx="20" ry="8" fill="#173f52" opacity=".26"/><g class="platform-landing-ring" fill="none" stroke="#fff2c3" stroke-width="2" opacity="0"><ellipse rx="22" ry="9"/></g><g class="platform-player" transform="translate(300 259)" aria-label="Tu exploradora">${platformExplorer()}</g><g class="platform-splash" aria-hidden="true"><ellipse rx="37" ry="13"/><ellipse rx="53" ry="21" stroke-width="2"/><path d="M-30 0-45-24M-12-3-20-35M13-3 23-34M30 0 45-21"/></g><g class="platform-touch-ring" opacity="0" fill="none" stroke="#e1fff1" stroke-width="2" pointer-events="none"><ellipse rx="24" ry="12"/><ellipse rx="34" ry="17"/></g><g class="platform-particles" aria-hidden="true" pointer-events="none">${Array.from({length:40},()=>'<g class="platform-particle" opacity="0"><circle r="1"/><path d="M0-1.5.4-.4 1.5 0 .4.4 0 1.5-.4.4-1.5 0-.4-.4Z"/></g>').join('')}</g><g class="platform-sparkles" aria-hidden="true" fill="#fffbd2"><path d="m40 200 3 7 7 3-7 3-3 7-3-7-7-3 7-3m490 88 3 7 7 3-7 3-3 7-3-7-7-3 7-3"/></g></g></svg>`;}
 function platformView(round,lesson){
  if(!round.platformStarted)return `<div class="archery-intro platform-intro"><div class="platform-intro-art" aria-hidden="true"><span>${platformOwl()}</span></div><h2>¡Que no te lleve la marea!</h2><button class="primary" data-play="platform-start">¡A saltar! <span aria-hidden="true">➜</span></button></div>`;
  const p=round.platform,word=lesson.words[round.order[round.attempt%round.order.length]];
- return `<div class="platform-game"><div class="platform-play-area"><div class="platform-controls platform-joystick-side"><div class="platform-joystick" data-platform-joystick tabindex="0" role="group" aria-label="Joystick para mover a la exploradora" aria-describedby="platform-joystick-help"><span class="platform-joystick-track" aria-hidden="true"></span><span class="platform-joystick-thumb" aria-hidden="true"></span></div><span class="platform-control-hint" id="platform-joystick-help">Mantén y arrastra</span></div><div class="platform-stage"><svg data-static-art="salta-water" class="platform-water-backdrop" viewBox="0 0 600 425" preserveAspectRatio="none" aria-hidden="true">${platformScenery()}</svg>${platformScene(round,lesson)}<div class="platform-host scene-clue"><div class="platform-clue"><div><span role="img" aria-label="${word.es}">${word.icon}</span><b>${word.es}</b></div></div></div><span class="scene-score platform-score" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span><button class="platform-owl" type="button" aria-label="Saludar a Oli">${platformOwl()}</button><div class="platform-timing"><span class="platform-timer-label" aria-hidden="true">◷ TIEMPO</span><strong class="platform-countdown" aria-label="Tiempo para llegar">Prepárate</strong><div class="platform-time"><i class="platform-time-fill"></i></div></div><small class="platform-phase game-announcement">MIRA LA IMAGEN</small></div><div class="platform-controls platform-jump-side"><button class="platform-jump" data-play="platform-control" data-direction="jump"><span aria-hidden="true">↟</span> Saltar</button></div></div></div>`;
+ return `<div class="platform-game"><div class="platform-play-area"><div class="platform-controls platform-joystick-side"><div class="platform-joystick" data-platform-joystick tabindex="0" role="group" aria-label="Joystick para mover a la exploradora" aria-describedby="platform-joystick-help"><span class="platform-joystick-track" aria-hidden="true"></span><span class="platform-joystick-thumb" aria-hidden="true"></span></div><span class="platform-control-hint" id="platform-joystick-help">Mantén y arrastra</span></div><div class="platform-stage"><svg data-static-art="salta-water" class="platform-water-backdrop" viewBox="0 0 600 425" preserveAspectRatio="none" aria-hidden="true">${platformScenery()}</svg>${platformScene(round,lesson)}<div class="platform-host scene-clue"><div class="platform-clue"><div><span role="img" aria-label="${word.es}">${wordIcon(word)}</span><b>${word.es}</b></div></div></div><span class="scene-score platform-score" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span><button class="platform-owl" type="button" aria-label="Saludar a Oli">${platformOwl()}</button><div class="platform-timing"><span class="platform-timer-label" aria-hidden="true">◷ TIEMPO</span><strong class="platform-countdown" aria-label="Tiempo para llegar">Prepárate</strong><div class="platform-time"><i class="platform-time-fill"></i></div></div><small class="platform-phase game-announcement">MIRA LA IMAGEN</small></div><div class="platform-controls platform-jump-side"><button class="platform-jump" data-play="platform-control" data-direction="jump"><span aria-hidden="true">↟</span> Saltar</button></div></div></div>`;
 }
 function resetPlatformJoystick(){
  const id=platformJoystick.pointerId;
