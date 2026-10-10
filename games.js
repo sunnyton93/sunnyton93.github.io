@@ -3,6 +3,7 @@ const ISLAND_LINEUP_KEY='ximena-island-games-v2';
 const REQUIRED_ISLAND_GAMES=['find','connect'];
 const MAIN_GAMES_PER_ISLAND=4,COMPLETION_COINS=40,MEMORY_COMPLETION_COINS=200;
 const MEMORY_REVIEW_PAIRS=3;
+const MEMORY_MOVE_LIMIT=60;
 let islandLineupSaved=true;
 const islandGameLineups=readIslandGameLineups();
 const ISLAND_COIN_BONUS_KEY='ximena-island-coin-bonus-v1';
@@ -146,6 +147,7 @@ function recordCompletion(round){
  round.previousBest=bestTimes[key]??null;
  round.isNewBest=round.previousBest===null||round.durationMs<round.previousBest;
  round.bestTime=round.isNewBest?round.durationMs:round.previousBest;
+ if(round.mode==='memory')round.memoryReplay ||= round.previousBest!==null;
  round.earnsCoins=round.mode==='memory'?!round.memoryReplay:round.isNewBest&&(round.previousBest===null||(coinImprovements[key]||0)<MAX_COIN_IMPROVEMENTS);
  round.coinImprovementLimitReached=round.mode!=='memory'&&round.isNewBest&&round.previousBest!==null&&!round.earnsCoins;
  if(round.earnsCoins&&round.previousBest!==null){
@@ -204,13 +206,35 @@ function memoryVocabularyForIsland(index){
 }
 function memoryView(a){
  const island=oceanIslands[a.index];
+ const remaining=Math.max(0,MEMORY_MOVE_LIMIT-a.turns);
  const backArt=`<svg class="memory-island-art" viewBox="-150 -185 300 255" aria-hidden="true"><ellipse cy="43" rx="125" ry="22" fill="var(--room-accent)" opacity=".12"/><ellipse cy="28" rx="115" ry="28" fill="#f5dfb0"/><ellipse cy="23" rx="104" ry="23" fill="${island.color}"/>${islandScenery(island.type)}</svg>`;
- return `${a.memoryReplay?'<p class="memory-replay-notice" role="status">Este bonus ya fue completado en esta isla. Puedes volver a jugar, pero no habrá recompensa ni monedas.</p>':''}<div class="memory-playground"><div class="memory-board">${a.deck.map((card,i)=>{
+ return `${a.memoryReplay?'<p class="memory-replay-notice" role="status">Este bonus ya fue completado en esta isla. Puedes volver a jugar, pero no habrá recompensa ni monedas.</p>':''}<div class="memory-playground"><div class="memory-moves ${remaining<=10?'is-low':''} ${remaining===0?'is-empty':''}"><div class="memory-moves-label"><span>Intentos restantes</span><strong aria-hidden="true">${remaining}</strong></div><div class="memory-meter" role="progressbar" aria-label="Intentos restantes" aria-valuemin="0" aria-valuemax="${MEMORY_MOVE_LIMIT}" aria-valuenow="${remaining}" aria-valuetext="${remaining} intentos restantes"><span class="memory-meter-fill" style="width:${remaining/MEMORY_MOVE_LIMIT*100}%"></span></div></div><div class="memory-board">${a.deck.map((card,i)=>{
   const open=a.picks.includes(card.id)||a.matched.includes(card.word),matched=a.matched.includes(card.word),word=a.memoryVocabulary[card.word];
   return `<button class="memory-card ${open?'is-open':''} ${matched?'is-matched':''} ${a.wrong.includes(card.id)?'is-wrong':''}" style="--deal-index:${i};--pearl-hue:${matched?(155+a.memoryWords.indexOf(card.word)*29)%360:155}" data-play="memory" data-id="${card.id}" ${matched||a.picks.includes(card.id)||a.pending?'disabled':''} aria-label="${open?word[card.english?'en':'es']:`Carta ${i+1}, boca abajo`}"><span class="memory-flipper" aria-hidden="true"><span class="memory-face memory-back"><span class="memory-emblem">${backArt}</span><i class="memory-glint">✧</i></span><span class="memory-face memory-front"><b>${word[card.english?'en':'es']}</b><span class="memory-stamp">${matched?'✓':a.wrong.includes(card.id)?'×':''}</span></span></span></button>`;
  }).join('')}</div></div>`;
 }
 let memoryTextBoard=null;
+function closeMemoryLoss(){const dialog=document.querySelector('.memory-loss-dialog');dialog?.close();dialog?.remove();}
+function syncMemoryLoss(){
+ if(screen!=='adventure'||adventure?.mode!=='memory'||!adventure.memoryLossOpen){closeMemoryLoss();return;}
+ let dialog=document.querySelector('.memory-loss-dialog');
+ if(!dialog){
+  dialog=document.createElement('dialog');dialog.className='memory-loss-dialog';
+  dialog.setAttribute('aria-labelledby','memory-loss-title');dialog.setAttribute('aria-describedby','memory-loss-description');
+  dialog.innerHTML=`<div class="memory-loss-art" aria-hidden="true"><svg viewBox="0 0 220 140"><ellipse cx="110" cy="123" rx="75" ry="9" fill="#33786c" opacity=".12"/><g class="memory-loss-cards"><rect x="40" y="19" width="71" height="98" rx="16" transform="rotate(-13 75 68)" fill="#a8ded0" stroke="#fffaf0" stroke-width="5"/><path d="m65 56 9-12 9 12-9 12Z" fill="#fffaf0"/><rect x="104" y="19" width="71" height="98" rx="16" transform="rotate(13 140 68)" fill="#ffe2a2" stroke="#fffaf0" stroke-width="5"/><path d="m140 43 5 11 12 2-9 8 2 12-10-6-10 6 2-12-9-8 12-2Z" fill="#e3ac4f"/></g><g class="memory-loss-sparkles" fill="#e9b85a"><path d="m25 27 3 7 7 3-7 3-3 7-3-7-7-3 7-3Zm164 52 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></g></svg></div><h2 id="memory-loss-title">¡Se acabaron tus movimientos!</h2><p id="memory-loss-description">¡Vamos de nuevo! Esta vez, recuerda dónde está cada pareja.</p><button class="primary memory-loss-retry" data-play="restart" autofocus>Volver a empezar <span aria-hidden="true">↻</span></button><button class="memory-loss-exit" data-action="map">Volver al mapa</button>`;
+  dialog.addEventListener('cancel',event=>event.preventDefault());
+  dialog.addEventListener('keydown',event=>{
+   event.stopPropagation();
+   if(event.key==='Escape')event.preventDefault();
+   if(event.key==='Tab'){
+    const buttons=[...dialog.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
+    event.preventDefault();buttons[(index+(event.shiftKey?-1:1)+buttons.length)%buttons.length].focus();
+   }
+  });
+  document.querySelector('.screen-overlay').append(dialog);
+ }
+ if(!dialog.open)dialog.showModal();
+}
 const memoryTextObserver=new ResizeObserver(()=>fitMemoryText());
 function fitMemoryText(){
  if(!memoryTextBoard?.isConnected)return;
@@ -232,6 +256,7 @@ function fitMemoryText(){
  }
 }
 function syncMemoryText(){
+ syncMemoryLoss();
  const board=document.querySelector('.memory-board');
  if(board!==memoryTextBoard){
   memoryTextObserver.disconnect();memoryTextBoard=board;
@@ -555,6 +580,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  startGameClock();
 }
 function finishAdventure(){
+ if(adventure?.memoryExhausted)return;
  const a=adventure;if(!a||a.done||(a.mode==='archery'&&!a.archeryStarted)||(a.mode==='platforms'&&!a.platformStarted)||(a.mode==='pirate'&&!a.pirateStarted)||(a.mode==='blaster'&&(!a.blasterStarted||a.step!==a.target)))return;
  a.durationMs=Math.round(elapsedGameMs(a));stopGameClock();
  recordCompletion(a);
@@ -578,6 +604,7 @@ function finishAdventure(){
  a.islandCompleted=a.mode===lastGameMode(a.index)&&islandComplete(a.index);a.justCompletedIsland=!wasComplete&&a.islandCompleted;
 }
 function cancelGameTurn(){
+ closeMemoryLoss();
  cancelPlatforms();
  clearConnectDrag();
  cancelArcheryAim();
@@ -594,6 +621,10 @@ function scheduleGameTurn(round){
  gameTurnTimer=setTimeout(()=>{
   gameTurnTimer=null;
   if(adventure!==round||screen!=='adventure'||!round.pending)return;
+  if(round.mode==='memory'&&round.memoryExhausted){
+   round.memoryLossOpen=true;render();SoundWorld.play('lose');
+   return;
+  }
   const restoreFocus=document.activeElement===document.body||document.activeElement?.dataset.play===round.mode;
   if(round.mode==='find'){
    if(round.checked)round.step++;
@@ -609,7 +640,7 @@ function scheduleGameTurn(round){
   if(round.mode==='find'&&round.step===round.target)finishAdventure();
   render();animateAdventure('advance',{dataset:{}},0);
   if(restoreFocus)document.querySelector(round.done?'[data-play="restart"]':`[data-play="${round.mode}"]:not(:disabled)`)?.focus({preventScroll:true});
- },500);
+ },round.memoryExhausted?1200:500);
 }
 // Patch only changed nodes. The dialog, map, cards, focus and scroll stay mounted.
 function patchGameNode(current,next){
@@ -747,13 +778,14 @@ function handleAdventure(button){
  if(!a.memorySeen.includes(id))a.memorySeen.push(id);
  a.picks.push(id);SoundWorld.play('flip');a.notice='';
  if(a.picks.length===2){a.turns++;const pair=a.picks.map(p=>a.deck.find(c=>c.id===p));if(pair[0].word===pair[1].word){a.streak++;a.matched.push(card.word);a.picks=[];a.notice=`¡Pareja encontrada! ${a.streak} seguidas.`;SoundWorld.play(a.streak>1?'combo':'correct');if(a.matched.length===a.target)finishAdventure();}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.streak=0;a.notice='Mira las dos palabras antes de volver a ocultarlas.';SoundWorld.play('wrong');}}
+ if(a.turns>=MEMORY_MOVE_LIMIT&&!a.done){a.memoryExhausted=true;a.pending=true;a.notice='¡Se acabaron tus movimientos!';stopGameClock();}
  }
  render();
  animateAdventure(action,button,oldCount);
  if(a.pending){scheduleGameTurn(a);return;}
  const candidates=[...document.querySelectorAll('.island-game button:not(:disabled):not([hidden])')];
  const same=candidates.find(el=>el.dataset.play===action&&el.dataset.id===button.dataset.id&&el.dataset.side===button.dataset.side&&el.dataset.mode===button.dataset.mode);
- (document.querySelector('.unlock-close')||same||document.querySelector('.result-action,.island-game .primary:not([hidden])')||candidates[0])?.focus({preventScroll:true});
+ ((action==='restart'&&adventure.mode==='memory'?document.querySelector('.memory-card'):null)||document.querySelector('.unlock-close')||same||document.querySelector('.result-action,.island-game .primary:not([hidden])')||candidates[0])?.focus({preventScroll:true});
 }
 function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
 

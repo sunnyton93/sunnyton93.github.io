@@ -4,8 +4,8 @@ const SaltaPhysics=(()=>{
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
  function settings(completed){
   const late=clamp(completed-7,0,4);
-  return {scale:completed<4?1:completed<8?1.22+(completed-4)*.012:1.28+late*.02,
-   drift:late?5+late*2:0,tilt:late?10+late*1.3:completed>=4?7:3.2,maxSpeed:late?19+late:24};
+  return {scale:completed<4?1:completed<8?1.245+(completed-4)*.013:1.31+late*.02,
+   drift:late?6+late*2.4:0,tilt:late?12+late*1.5:completed>=4?8:3.2,maxSpeed:late?21+late:24};
  }
  function create(centers){
   return {x:300,y:220,z:0,height:0,vx:0,vy:0,vz:0,airborne:false,rider:0,time:0,accumulator:0,spread:1,
