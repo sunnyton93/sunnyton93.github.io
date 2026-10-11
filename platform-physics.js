@@ -2,19 +2,19 @@
 const SaltaPhysics=(()=>{
  const STEP=1/120,GRAVITY=1450,DEG=Math.PI/180;
  // Static grip defines the stable central area; sliding friction controls the glide.
- const STATIC_FRICTION=.11,SLIDING_FRICTION=.085;
+ const STATIC_FRICTION=.10,GROUND_FRICTION=.085,SLIDING_FRICTION=.06;
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
  function settings(completed){
   const late=clamp(completed-7,0,4);
   return {scale:completed<4?1:completed<8?1.245+(completed-4)*.013:1.31+late*.02,
-   drift:late?6+late*2.4:0,tilt:late?14+late*1.5:completed>=4?9:3.2,maxSpeed:late?21+late:24};
+   drift:late?6+late*2.4:0,tilt:late?18+late*1.5:completed>=4?12:8,maxSpeed:late?21+late:24};
  }
  function create(centers){
   return {x:300,y:220,z:0,height:0,vx:0,vy:0,vz:0,airborne:false,rider:0,time:0,accumulator:0,spread:1,
    baseCenters:centers.map(point=>[...point]),centers:centers.map(point=>[...point]),
    bodies:centers.map(([x,y])=>({x,y,vx:0,vy:0})),
    floats:centers.map(()=>({depth:0,depthVelocity:0,roll:0,rollVelocity:0,pitch:0,pitchVelocity:0,rippleAt:-Infinity})),
-   settings:settings(0),jumpAt:null,landedAt:null,gapMs:0,fell:false,sliding:false};
+   settings:settings(0),jumpAt:null,takeoffAt:null,landedAt:null,gapMs:0,fell:false,sliding:false};
  }
  function at(x,y,centers){
   let nearest=-1,distance=Infinity;
@@ -35,7 +35,7 @@ const SaltaPhysics=(()=>{
  function configure(p,completed,now,respawn){
   p.settings=settings(completed);p.time=now;p.accumulator=0;p.fell=false;p.sliding=false;
   if(respawn){[p.x,p.y]=p.centers[0];p.vx=p.vy=0;}
-  p.jumpAt=null;p.airborne=false;p.vz=0;p.gapMs=0;p.z=0;
+  p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.vz=0;p.gapMs=0;p.z=0;
   p.rider=at(p.x,p.y,p.centers);p.height=height(p,p.rider);
  }
  function spring(state,key,target,dt,stiffness=85,damping=16){
@@ -83,7 +83,9 @@ const SaltaPhysics=(()=>{
  }
  function jump(p,now){
   if(p.jumpAt!==null||p.airborne||p.fell||p.gapMs>65||!['prepare','seek','collapse'].includes(p.phase))return false;
-  p.jumpAt=now;return true;
+  // Catch-up is capped after a busy frame, so only the simulation clock can
+  // schedule lift-off. Keep wall time separately for the visual anticipation.
+  p.jumpAt=now;p.takeoffAt=p.time+55;return true;
  }
  function step(p,input,dt){
   p.time+=dt*1000;moveDecks(p,dt);
@@ -104,22 +106,23 @@ const SaltaPhysics=(()=>{
   if(!playing||p.fell){p.vx=p.vy=0;if(support>=0)p.height=height(p,support);return;}
   const length=Math.hypot(input.x,input.y),strength=Math.min(1,length),ix=length?input.x/length*strength:0,iy=length?input.y/length*strength:0;
   p.moveX=ix;p.moveY=iy;p.strength=strength;p.walking=strength>.01;if(Math.abs(ix)>.01)p.facing=ix<0?-1:1;
-  if(p.jumpAt!==null&&!p.airborne&&p.time-p.jumpAt>=55){
+  if(p.jumpAt!==null&&!p.airborne&&p.time>=p.takeoffAt){
    const body=p.bodies[support];p.vx+=body?.vx||0;p.vy+=body?.vy||0;
    p.height=support>=0?height(p,support):p.height;p.vz=Math.sqrt(2*GRAVITY*64);p.airborne=true;p.rider=-1;support=-1;
   }
-  const speed=p.airborne?220:185,response=p.airborne?6:strength?18:9;
-  let ax=(ix*speed-p.vx)*response,ay=(iy*speed-p.vy)*response;
-  const acceleration=Math.hypot(ax,ay),maxAcceleration=p.airborne?850:1600;
-  if(acceleration>maxAcceleration){ax*=maxAcceleration/acceleration;ay*=maxAcceleration/acceleration;}
   let slopeX=0,slopeY=0;
   if(support>=0){slopeX=GRAVITY*Math.sin(p.floats[support].roll*DEG);slopeY=GRAVITY*Math.sin(p.floats[support].pitch*DEG);}
   const slope=Math.hypot(slopeX,slopeY),normal=Math.sqrt(Math.max(0,GRAVITY*GRAVITY-slope*slope));
   p.sliding=support>=0&&slope>normal*STATIC_FRICTION;
+  // Less passive braking while sliding; steering still has its full response.
+  const speed=p.airborne?220:185,response=p.airborne?6:strength?18:p.sliding?7:9;
+  let ax=(ix*speed-p.vx)*response,ay=(iy*speed-p.vy)*response;
+  const acceleration=Math.hypot(ax,ay),maxAcceleration=p.airborne?850:1600;
+  if(acceleration>maxAcceleration){ax*=maxAcceleration/acceleration;ay*=maxAcceleration/acceleration;}
   if(support>=0&&strength===0&&Math.hypot(p.vx,p.vy)<2&&slope<=normal*STATIC_FRICTION){p.vx=p.vy=0;}
   else{
    p.vx+=(ax+slopeX)*dt;p.vy+=(ay+slopeY)*dt;
-   const velocity=Math.hypot(p.vx,p.vy),friction=support>=0?normal*SLIDING_FRICTION*dt:0;
+   const velocity=Math.hypot(p.vx,p.vy),friction=support>=0?normal*(p.sliding?SLIDING_FRICTION:GROUND_FRICTION)*dt:0;
    if(velocity){const remaining=Math.max(0,Math.min(235,velocity-friction))/velocity;p.vx*=remaining;p.vy*=remaining;}
   }
   p.x+=p.vx*dt;p.y+=p.vy*dt;
@@ -132,7 +135,7 @@ const SaltaPhysics=(()=>{
    const surface=height(p,support);
    if(support>=0&&p.vz<0&&p.height<=surface&&previous>=surface-3){
     const impact=Math.min(65,Math.abs(p.vz)*.11),state=p.floats[support];
-    p.airborne=false;p.jumpAt=null;p.vz=0;p.height=surface;p.rider=support;p.gapMs=0;p.landedAt=p.time;
+    p.airborne=false;p.jumpAt=null;p.takeoffAt=null;p.vz=0;p.height=surface;p.rider=support;p.gapMs=0;p.landedAt=p.time;
     p.vx-=p.bodies[support].vx;p.vy-=p.bodies[support].vy;
     state.depthVelocity+=impact;state.rollVelocity+=(p.x-p.centers[support][0])*.12;state.pitchVelocity+=(p.y-p.centers[support][1])*.08;state.rippleAt=p.time;
    }else if(p.height<-38){p.fell=true;}

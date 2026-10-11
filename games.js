@@ -794,8 +794,8 @@ const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_ANSWER_MS=4000;
 function pirateAnswerWindow(completed){return Math.max(2000,PIRATE_ANSWER_MS-completed*200);}
 function pirateExposure(completed){
  const exposure=completed<6?4000:Math.max(1500,3000-(completed-6)*250);
- // Reserve the lowering animation plus at least 600 ms to answer from memory.
- return Math.min(exposure,pirateAnswerWindow(completed)-PIRATE_LIFT_MS-600);
+ // Hide 200 ms earlier, leaving at least 800 ms to answer from memory.
+ return Math.min(exposure,pirateAnswerWindow(completed)-PIRATE_LIFT_MS-800);
 }
 function pirateCanChoose(p){return p&&['choose','hide','recall'].includes(p.phase);}
 function beginPirate(){

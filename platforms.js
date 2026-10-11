@@ -5,6 +5,8 @@ const platformMarks=['✦','●','◆','☾','✿','▲','≋'];
 const platformKeys=new Set();
 const platformPointers=new Map();
 const platformJoystick={pointerId:null,x:0,y:0,offsetX:0,offsetY:0};
+const PLATFORM_JUMP_BUFFER_MS=140;
+let platformJumpRequestedAt=null;
 let platformFrame=null;
 let platformDom=null;
 let platformArtwork={};
@@ -27,7 +29,7 @@ function platformAttribute(node,name,value){const text=String(value);if(node.get
 function platformText(node,value){if(node.textContent!==value)node.textContent=value;}
 function activePlatforms(){return screen==='adventure'&&adventure?.mode==='platforms'&&adventure.platformStarted&&!adventure.done;}
 function clearPlatformControls(){
- platformKeys.clear();platformPointers.clear();
+ platformKeys.clear();platformPointers.clear();platformJumpRequestedAt=null;
  resetPlatformJoystick();
  document.querySelectorAll('[data-direction]').forEach(button=>button.classList.remove('is-held'));
 }
@@ -38,6 +40,7 @@ function platformAt(x,y,centers=platformCenters){
 function platformWindow(round){return round.step>=8?5600:7000-Math.min(7,round.step)*2000/7;}
 function preparePlatforms(round,respawn=false){
  const p=round.platform,now=elapsedGameMs(round),correct=round.order[round.attempt%round.order.length];
+ platformJumpRequestedAt=null;
  // Retarget the decks; the simulation opens gaps smoothly with its passenger aboard.
  SaltaPhysics.configure(p,round.step,now,respawn);
  const wordIds=islandLessons[round.index].words.map(word=>word.id),previous=p.options;
@@ -72,13 +75,23 @@ function beginPlatforms(){
 }
 function jumpPlatforms(){
  if(!activePlatforms()||document.hidden)return;
- const p=adventure.platform;
- if(!SaltaPhysics.jump(p,elapsedGameMs(adventure)))return;
+ const now=elapsedGameMs(adventure);
+ platformJumpRequestedAt=now;consumePlatformJump(adventure,now);
+}
+function consumePlatformJump(round,now){
+ if(platformJumpRequestedAt===null)return;
+ const p=round.platform;
+ // Remember a recent tap through landing, without auto-jumping while held.
+ if(now-platformJumpRequestedAt>PLATFORM_JUMP_BUFFER_MS||p.fell||!['prepare','seek','collapse'].includes(p.phase)){
+  platformJumpRequestedAt=null;return;
+ }
+ if(!SaltaPhysics.jump(p,now))return;
+ platformJumpRequestedAt=null;
  p.launchOffset={...p.contactOffset};platformBurst(p,p.jumpAt,p.x,114+p.y*.68,'sand',10);SoundWorld.play('jump');
 }
 function fallPlatforms(round,now){
  const p=round.platform;if(p.phase==='fall')return;
- round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.fallAt=now;p.jumpAt=null;p.airborne=false;p.rider=-1;
+ round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.fallAt=now;p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.rider=-1;
  round.notice=`¡Al agua! La palabra era ${islandLessons[round.index].words[round.order[round.attempt%round.order.length]].en}. ¡Vamos con otra palabra!`;
  clearPlatformControls();platformBurst(p,now,p.x,115+p.y*.68,'water',24);SoundWorld.play('splash');
 
@@ -88,9 +101,10 @@ function tickPlatforms(){
  const round=adventure,p=round.platform,now=elapsedGameMs(round),dt=Math.min(100,Math.max(0,now-p.last));p.last=now;
  let right=platformKeys.has('right'),left=platformKeys.has('left'),down=platformKeys.has('down'),up=platformKeys.has('up');
  for(const direction of platformPointers.values()){right ||= direction==='right';left ||= direction==='left';down ||= direction==='down';up ||= direction==='up';}
+ consumePlatformJump(round,now);
  const landedAt=p.landedAt;
  SaltaPhysics.advance(p,dt/1000,{x:Number(right)-Number(left)+platformJoystick.x,y:Number(down)-Number(up)+platformJoystick.y});
- if(p.landedAt!==landedAt)platformBurst(p,now,p.x,114+p.y*.68,'sand',8);
+ if(p.landedAt!==landedAt){platformBurst(p,now,p.x,114+p.y*.68,'sand',8);consumePlatformJump(round,now);}
  if(p.fell&&p.phase!=='fall')fallPlatforms(round,now);
  if(!document.hidden){
   if(['prepare','seek','collapse'].includes(p.phase)){
