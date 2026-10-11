@@ -1,11 +1,13 @@
 // Salta's world-space simulation. Rendering and input devices never advance physics.
 const SaltaPhysics=(()=>{
  const STEP=1/120,GRAVITY=1450,DEG=Math.PI/180;
+ // Static grip defines the stable central area; sliding friction controls the glide.
+ const STATIC_FRICTION=.11,SLIDING_FRICTION=.085;
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
  function settings(completed){
   const late=clamp(completed-7,0,4);
   return {scale:completed<4?1:completed<8?1.245+(completed-4)*.013:1.31+late*.02,
-   drift:late?6+late*2.4:0,tilt:late?12+late*1.5:completed>=4?8:3.2,maxSpeed:late?21+late:24};
+   drift:late?6+late*2.4:0,tilt:late?14+late*1.5:completed>=4?9:3.2,maxSpeed:late?21+late:24};
  }
  function create(centers){
   return {x:300,y:220,z:0,height:0,vx:0,vy:0,vz:0,airborne:false,rider:0,time:0,accumulator:0,spread:1,
@@ -113,11 +115,11 @@ const SaltaPhysics=(()=>{
   let slopeX=0,slopeY=0;
   if(support>=0){slopeX=GRAVITY*Math.sin(p.floats[support].roll*DEG);slopeY=GRAVITY*Math.sin(p.floats[support].pitch*DEG);}
   const slope=Math.hypot(slopeX,slopeY),normal=Math.sqrt(Math.max(0,GRAVITY*GRAVITY-slope*slope));
-  p.sliding=support>=0&&slope>normal*.14;
-  if(support>=0&&strength===0&&Math.hypot(p.vx,p.vy)<2&&slope<=normal*.14){p.vx=p.vy=0;}
+  p.sliding=support>=0&&slope>normal*STATIC_FRICTION;
+  if(support>=0&&strength===0&&Math.hypot(p.vx,p.vy)<2&&slope<=normal*STATIC_FRICTION){p.vx=p.vy=0;}
   else{
    p.vx+=(ax+slopeX)*dt;p.vy+=(ay+slopeY)*dt;
-   const velocity=Math.hypot(p.vx,p.vy),friction=support>=0?normal*.095*dt:0;
+   const velocity=Math.hypot(p.vx,p.vy),friction=support>=0?normal*SLIDING_FRICTION*dt:0;
    if(velocity){const remaining=Math.max(0,Math.min(235,velocity-friction))/velocity;p.vx*=remaining;p.vy*=remaining;}
   }
   p.x+=p.vx*dt;p.y+=p.vy*dt;

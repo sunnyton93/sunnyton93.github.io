@@ -789,7 +789,15 @@ function handleAdventure(button){
 }
 function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
 
-// Banderas: one clock drives every phase and pauses with the shared game clock.
+// Independent answer/exposure deadlines share the same pausable active-time clock.
+const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_ANSWER_MS=4000;
+function pirateAnswerWindow(completed){return Math.max(2000,PIRATE_ANSWER_MS-completed*200);}
+function pirateExposure(completed){
+ const exposure=completed<6?4000:Math.max(1500,3000-(completed-6)*250);
+ // Reserve the lowering animation plus at least 600 ms to answer from memory.
+ return Math.min(exposure,pirateAnswerWindow(completed)-PIRATE_LIFT_MS-600);
+}
+function pirateCanChoose(p){return p&&['choose','hide','recall'].includes(p.phase);}
 function beginPirate(){
  const round=adventure;
  if(screen!=='adventure'||round?.mode!=='pirate'||round.pirateStarted||round.done)return;
@@ -802,31 +810,43 @@ function preparePirateRound(round){
  const words=islandLessons[round.index].words,word=words[round.order[round.attempt%round.order.length]];
  const other=shuffle(words.filter(candidate=>candidate.id!==word.id&&candidate.en!==word.en&&wordIconKey(candidate)!==wordIconKey(word)))[0];
  const correctSide=Math.random()<.5?0:1;
- const now=elapsedGameMs(round),answerWindow=3000-Math.min(round.step,7)*100;
- round.pirate={phase:'choose',phaseAt:now,window:answerWindow,deadline:now+answerWindow,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false};
- round.pending=false;round.notice='Elige una bandera.';render();
+ const now=elapsedGameMs(round),answerWindow=pirateAnswerWindow(round.step);
+ round.pirate={phase:'announce',phaseAt:now,answerWindow,answerRemaining:answerWindow,answerDeadline:null,exposureWindow:pirateExposure(round.step),exposureDeadline:null,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false,timedOut:false};
+ round.pending=false;round.notice='Mira la palabra del capitán.';render();
 }
 function choosePirate(side){
  const round=adventure,p=round?.pirate;
- if(screen!=='adventure'||round?.mode!=='pirate'||round.done||!round.pirateStarted||document.hidden||p?.phase!=='choose'||![0,1].includes(side))return;
- if(elapsedGameMs(round)>=p.deadline){resolvePirate(round,null);return;}
+ if(screen!=='adventure'||round?.mode!=='pirate'||round.done||!round.pirateStarted||document.hidden||!pirateCanChoose(p)||![0,1].includes(side))return;
  resolvePirate(round,side);
 }
 function resolvePirate(round,side){
- const p=round.pirate;if(p.phase!=='choose')return;
- p.selected=side;p.outcome=side===p.correctSide;p.phase=p.outcome?'success':'miss';p.phaseAt=elapsedGameMs(round);round.pending=true;
+ const p=round.pirate;if(!pirateCanChoose(p))return;
+ const now=elapsedGameMs(round);
+ // Input can arrive between clock ticks; an expired answer must never earn a hit.
+ p.answerRemaining=Math.max(0,p.answerDeadline-now);
+ if(p.answerRemaining===0)side=null;
+ p.timedOut=side===null;p.selected=side;p.outcome=side===p.correctSide;p.phase=p.outcome?'success':'miss';p.phaseAt=now;round.pending=true;
  if(p.outcome){round.streak++;round.notice='¡Muy bien!';SoundWorld.play(round.streak>1?'combo':'correct');}
- else{round.mistakes++;round.streak=0;round.notice=side===null?'¡Se acabó el tiempo!':'¡Ups!';SoundWorld.play('pirate-swish');}
+ else{round.mistakes++;round.streak=0;round.notice=p.timedOut?'¡Se acabó el tiempo!':'¡Ups!';SoundWorld.play('pirate-swish');}
  render();
 }
 function updatePirateRound(){
  const round=adventure,p=round?.pirate;
  if(screen!=='adventure'||round?.mode!=='pirate'||!round.pirateStarted||round.done||!p||document.hidden)return;
  const now=elapsedGameMs(round),age=now-p.phaseAt;
- if(p.phase==='choose'){
-  if(now>=p.deadline){resolvePirate(round,null);return;}
+ if(p.phase==='announce'&&age>=PIRATE_DIALOGUE_MS){
+  p.phase='reveal';p.phaseAt=now;round.notice='Mira las banderas.';render();
+ }else if(p.phase==='reveal'&&age>=PIRATE_LIFT_MS){
+  // Both timers start with the flags fully raised. Hiding never resets answer time.
+  p.phase='choose';p.phaseAt=now;p.answerDeadline=now+p.answerWindow;p.exposureDeadline=now+p.exposureWindow;
+  round.notice='Elige una bandera.';render();
+ }else if(pirateCanChoose(p)){
+  p.answerRemaining=Math.max(0,p.answerDeadline-now);
+  if(now>=p.answerDeadline){resolvePirate(round,null);return;}
+  if(p.phase==='choose'&&now>=p.exposureDeadline){p.phase='hide';p.phaseAt=now;round.notice='Recuerda de qué lado estaba.';render();return;}
+  if(p.phase==='hide'&&age>=PIRATE_LIFT_MS){p.phase='recall';p.phaseAt=now;render();return;}
   const meter=document.querySelector('.pirate-time');
-  if(meter){const remaining=Math.max(0,p.deadline-now);meter.querySelector('i').style.transform=`scaleX(${remaining/p.window})`;meter.setAttribute('aria-valuenow',String(Math.ceil(remaining/1000)));meter.classList.toggle('is-urgent',remaining<1500);}
+  if(meter){meter.querySelector('i').style.transform=`scaleX(${p.answerRemaining/p.answerWindow})`;meter.setAttribute('aria-valuenow',String(Math.ceil(p.answerRemaining/1000)));meter.classList.toggle('is-urgent',p.answerRemaining<1500);}
  }else if(p.phase==='miss'&&age>=800){
   p.phase='correct';p.phaseAt=now;const word=islandLessons[round.index].words[p.word];round.notice=`${word.en}: ${word.es}.`;render();
  }else if((p.phase==='success'&&age>=1100)||(p.phase==='correct'&&age>=2000)){
@@ -854,7 +874,7 @@ function pirateCaptain(){return `<svg data-static-art="pirate-captain" class="pi
  <g class="captain-eye"><ellipse cx="134" cy="128" rx="6" ry="9" fill="#3d4d59"/><circle cx="136" cy="125" r="2" fill="#fff9e2"/></g><path class="captain-brow" d="M122 112q10-7 22 0" stroke="#8d5944" stroke-width="5" stroke-linecap="round" fill="none"/>
  <path d="m112 97 100 35" stroke="#35485a" stroke-width="5"/><path d="M169 116q16-9 31 3l-3 20q-23 13-29-7Z" fill="#35485a"/><path d="m177 121 13 4" stroke="#597386" stroke-width="3" stroke-linecap="round"/>
  <path d="M157 127q-8 15 5 15" fill="none" stroke="#d38e6c" stroke-width="4" stroke-linecap="round"/>
- <path class="captain-smile" d="M140 155q20 26 39 0Z" fill="#85594e"/><path class="captain-smile" d="M145 156h29l-4 7h-20Z" fill="#fff5db"/>
+ <g class="captain-mouth"><path class="captain-smile" d="M140 155q20 26 39 0Z" fill="#85594e"/><path class="captain-smile" d="M145 156h29l-4 7h-20Z" fill="#fff5db"/></g>
  <path class="captain-pout" d="M146 164q14-12 28 0" stroke="#98604d" stroke-width="5" fill="none" stroke-linecap="round"/>
  <path d="M95 97Q159 70 225 98l-5 18q-59-23-120-2Z" fill="#d77969"/><path d="m218 101 34 27-30-1 13 23-28-10Z" fill="#cf6c62"/>
  <path d="M64 92Q86 61 99 75q4-57 61-61 56 4 62 61 14-13 35 17-91 29-193 0Z" fill="#304c6b" stroke="#edbf72" stroke-width="6" stroke-linejoin="round"/>
@@ -864,18 +884,21 @@ function pirateCaptain(){return `<svg data-static-art="pirate-captain" class="pi
  </g></svg>`;}
 function pirateFlag(word,side,p){
  const corrected=p&&['success','correct'].includes(p.phase),right=corrected&&side===p.correctSide;
- return `<div class="pirate-flag flag-${side?'right':'left'} ${right?'flag-correct':''} ${corrected&&!right?'flag-muted':''}"><div class="flag-cloth"><span class="flag-picture" role="img" aria-label="${word.es}">${wordIcon(word)}</span><b class="flag-check" aria-hidden="true">✓</b></div><i class="flag-pole" aria-hidden="true"></i></div>`;
+ const hidden=!p||['announce','hide','recall'].includes(p.phase);
+ return `<div class="pirate-flag flag-${side?'right':'left'} ${right?'flag-correct':''} ${corrected&&!right?'flag-muted':''}" aria-hidden="${hidden}"><div class="flag-cloth"><span class="flag-picture" role="img" aria-label="${word.es}">${wordIcon(word)}</span><b class="flag-check" aria-hidden="true">✓</b></div><i class="flag-pole" aria-hidden="true"></i></div>`;
 }
 function pirateView(round,lesson){
  const p=round.pirate,started=round.pirateStarted,word=lesson.words[started?p.word:round.order[0]];
  const phase=started?p.phase:'intro';
  const options=started?p.options: [word.id,lesson.words.find(w=>wordIconKey(w)!==wordIconKey(word)).id];
  const correct=started&&phase==='correct';
- return `<div class="pirate-game pirate-${phase}" tabindex="-1" role="group" aria-label="Banderas del pirata"><div class="pirate-heading"><span class="pirate-kicker">${started?'CAPITÁN BRISA':'BANDERAS DEL PIRATA'}</span><h2 class="pirate-word">${started?word.en:'¡Elige tu bandera!'}</h2>${!started?'<p>Mira la palabra. Toca el lado de su imagen.</p>':''}</div>
+ const remaining=started?p.answerRemaining:0;
+ const hint=phase==='announce'?'Mira la palabra.':phase==='reveal'?'Mira las banderas.':['hide','recall'].includes(phase)?'¿De qué lado estaba?':phase==='choose'?'Elige una bandera.':'\u00a0';
+ return `<div class="pirate-game pirate-${phase}" tabindex="-1" role="group" aria-label="Banderas del pirata"><div class="pirate-heading"><span class="pirate-kicker">${started?'CAPITÁN BRISA':'BANDERAS DEL PIRATA'}</span><h2 class="pirate-word ${started?'pirate-dialogue':''}" aria-live="polite" aria-atomic="true">${started?word.en:'¡Elige tu bandera!'}</h2>${!started?'<p>Mira la palabra. Toca el lado de su imagen.</p>':''}</div>
  <div class="pirate-stage"><div class="pirate-sea" aria-hidden="true"><i></i><i></i></div><div class="pirate-deck" aria-hidden="true"></div><div class="pirate-ropes" aria-hidden="true"></div>${pirateCaptain()}${options.map((id,side)=>pirateFlag(lesson.words[id],side,started?p:null)).join('')}
 
- <div class="pirate-confetti" aria-hidden="true">${Array.from({length:12},(_,i)=>`<i style="--piece:${i};--confetti-x:${-190+i*35}px;--confetti-y:${-100+(i%4)*40}px">${i%3?'✦':'●'}</i>`).join('')}</div><div class="pirate-reaction" role="status">${phase==='success'?'¡Muy bien! ★':phase==='miss'?'¡Ups!':correct?`<span aria-hidden="true">${wordIcon(word)}</span> ${word.en} <small>${word.es}</small>`:''}</div></div>
- ${started?`<div class="pirate-time" role="progressbar" aria-label="Tiempo para elegir" aria-valuemin="0" aria-valuemax="${Math.ceil(p.window/1000)}" aria-valuenow="${phase==='choose'?Math.ceil(Math.max(0,p.deadline-elapsedGameMs(round))/1000):Math.ceil(p.window/1000)}"><i></i></div><div class="pirate-controls">${[0,1].map(side=>`<button type="button" class="pirate-choice choice-${side?'right':'left'}" data-play="pirate-choice" data-side="${side}" ${phase!=='choose'?'disabled':''} aria-label="Elegir la bandera ${side?'derecha':'izquierda'}"><span aria-hidden="true">${side?'→':'←'}</span><b>${side?'Derecha':'Izquierda'}</b></button>`).join('')}</div>`:'<div class="pirate-start-panel"><span>8 aciertos · toca izquierda o derecha</span><button class="primary" data-play="pirate-start">¡A jugar! <span aria-hidden="true">➜</span></button></div>'}
+ <div class="pirate-confetti" aria-hidden="true">${Array.from({length:12},(_,i)=>`<i style="--piece:${i};--confetti-x:${-190+i*35}px;--confetti-y:${-100+(i%4)*40}px">${i%3?'✦':'●'}</i>`).join('')}</div><div class="pirate-reaction" role="status">${phase==='success'?'¡Muy bien! ★':phase==='miss'?(p.timedOut?'¡Se acabó el tiempo!':'¡Ups!'):correct?`<span aria-hidden="true">${wordIcon(word)}</span> ${word.en} <small>${word.es}</small>`:''}</div></div>
+ ${started?`<div class="pirate-hint"><div class="pirate-time ${remaining<1500?'is-urgent':''}" role="progressbar" aria-label="Tiempo para responder" aria-valuemin="0" aria-valuemax="${Math.ceil(p.answerWindow/1000)}" aria-valuenow="${Math.ceil(remaining/1000)}"><i style="transform:scaleX(${remaining/p.answerWindow})"></i></div><span>${hint}</span></div><div class="pirate-controls">${[0,1].map(side=>`<button type="button" class="pirate-choice choice-${side?'right':'left'}" data-play="pirate-choice" data-side="${side}" ${!pirateCanChoose(p)?'disabled':''} aria-label="Elegir la bandera ${side?'derecha':'izquierda'}"><span aria-hidden="true">${side?'→':'←'}</span><b>${side?'Derecha':'Izquierda'}</b></button>`).join('')}</div>`:`<div class="pirate-start-panel"><span>${round.target} aciertos · toca izquierda o derecha</span><button class="primary" data-play="pirate-start">¡A jugar! <span aria-hidden="true">➜</span></button></div>`}
  </div>`;
 }
 
