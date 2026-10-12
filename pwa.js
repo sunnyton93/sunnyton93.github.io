@@ -22,6 +22,7 @@
     banner.setAttribute('aria-labelledby', 'app-update-title');
     banner.innerHTML = '<div><strong id="app-update-title">Hay una actualización disponible</strong><p role="status">Recarga para usar la nueva versión. Tu progreso guardado se conserva; la partida en curso se reiniciará.</p></div><button type="button">Actualizar ahora</button>';
     document.body.append(banner);
+    SoundWorld.play('notification');
     message = banner.querySelector('p');
     applyButton = banner.querySelector('button');
     applyButton.addEventListener('click', () => {
@@ -37,6 +38,7 @@
       applyButton.disabled = false;
       applyButton.textContent = 'Reintentar actualización';
       message.textContent = 'No se pudo recargar. Revisa tu conexión e inténtalo otra vez. Tu progreso guardado se conserva.';
+      SoundWorld.play('notification');
      }, 15000);
      if (waiting) waiting.postMessage({type: 'SKIP_WAITING'});
      else reload();

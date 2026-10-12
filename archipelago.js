@@ -12,7 +12,7 @@ function luceroRequirement(route){const position=luceroOpenRoutes.indexOf(route)
 function luceroRouteClosed(island){return island.routeIndex!==undefined&&!luceroOpenRoutes.includes(island.routeIndex);}
 function luceroLockArt(){return '<svg viewBox="0 0 100 110" aria-hidden="true"><path class="lucero-shackle" d="M26 48V29a24 24 0 0 1 48 0v19" fill="none" stroke="#ffe5a1" stroke-width="12" stroke-linecap="round"/><rect x="12" y="43" width="76" height="60" rx="17" fill="#efbe62" stroke="#fff2bf" stroke-width="4"/><path d="m50 54 6 12 13 2-10 9 3 14-12-7-12 7 3-14-10-9 13-2Z" fill="#91662d"/></svg>';}
 function luceroMapGate(){return `<button class="lucero-map-gate ${luceroOpenRoutes.length===2?'is-open':''}" style="left:1360px;top:1290px" data-action="route-gate" aria-label="Candado de Faro Lucero. Elegir camino">${luceroLockArt()}<b>FARO LUCERO</b><small>${islandRoutes.map((_,i)=>`<span>${i===0?'↗':'↘'} ${luceroOpenRoutes.includes(i)?'✓':`★ ${luceroRequirement(i)}`}</span>`).join('')}</small></button>`;}
-function openLuceroGate(){cancelGameTurn();luceroGateMessage='';screen='route-gate';render();}
+function openLuceroGate(){cancelGameTurn();luceroGateMessage='';screen='route-gate';render();SoundWorld.play('open');}
 function luceroGateView(){const stars=totalStars();return `${header('Los caminos de Lucero','ELIGE TU AVENTURA')}<section class="lucero-gate"><div class="lucero-stars">★ ${stars} estrellas</div><p>Elige el camino que quieres abrir.</p><div class="lucero-choices">${islandRoutes.map((route,i)=>{const open=luceroOpenRoutes.includes(i),required=luceroRequirement(i);return `<button class="lucero-choice ${open?'is-open':''} ${luceroUnlocking===i?'is-unlocking':''}" data-lucero-route="${i}" style="--route-color:${route.color}" ${luceroUnlocking!==null||stars<required?'disabled':''}><span class="lucero-lock">${luceroLockArt()}<i>★</i><i>★</i><i>★</i></span><b>${route.name}</b><small>${oceanIslands[route.islands[0]].name}</small><strong>${open?'Explorar →':`★ ${required} estrellas`}</strong>${!open&&stars<required?`<span>Faltan ${required-stars} estrellas</span>`:''}</button>`;}).join('')}</div><p class="lucero-status" role="status" aria-live="polite">${luceroUnlocking!==null?'¡Tus estrellas están abriendo el camino!':luceroGateMessage}</p></section>`;}
 async function unlockLuceroRoute(route){
  if(screen!=='route-gate'||luceroUnlocking!==null||![0,1].includes(route))return;
@@ -20,7 +20,7 @@ async function unlockLuceroRoute(route){
  if(totalStars()<luceroRequirement(route)){render();return;}
  if(luceroOpenRoutes.includes(route)){voyageToIsland(2,islandRoutes[route].islands[0]);return;}
  const next=[...luceroOpenRoutes,route];
- try{localStorage.setItem(LUCERO_ROUTES_KEY,JSON.stringify(next));}catch{luceroGateMessage='No se pudo guardar el camino. Inténtalo de nuevo.';render();return;}
+ try{localStorage.setItem(LUCERO_ROUTES_KEY,JSON.stringify(next));}catch{luceroGateMessage='No se pudo guardar el camino. Inténtalo de nuevo.';render();SoundWorld.play('notification');return;}
  luceroOpenRoutes=next;luceroUnlocking=route;render();SoundWorld.play('treasure');
  await new Promise(resolve=>setTimeout(resolve,calm||matchMedia('(prefers-reduced-motion: reduce)').matches?250:1700));
  luceroUnlocking=null;luceroGateMessage=`¡${islandRoutes[route].name} abierta!`;
@@ -82,7 +82,7 @@ function voyageToIsland(fromIndex,toIndex){
   const focusX=arrive?to.x:mapCamera.x+viewport.clientWidth/(2*(mapCamera.zoom||1));
   const focusY=arrive?to.y:mapCamera.y+viewport.clientHeight/(2*(mapCamera.zoom||1));
   camera(focusX,focusY,1);
-  if(arrive){startAdventure(toIndex);render();}else viewport.focus({preventScroll:true});
+  if(arrive){startAdventure(toIndex);render();}else{SoundWorld.play('close');viewport.focus({preventScroll:true});}
  }
  function onKey(event){
   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();finish(false);}

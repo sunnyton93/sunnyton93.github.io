@@ -1,7 +1,9 @@
 const SoundWorld = (()=>{
  const defaults={effects:.65,ambience:.35,music:.22};
  let volumes={...defaults};try{const saved=JSON.parse(localStorage.getItem('ximena-audio')||'{}');for(const key of Object.keys(defaults))if(Number.isFinite(saved[key]))volumes[key]=Math.max(0,Math.min(1,saved[key]));}catch{}
- let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,lastEffect=0,blasterNoise,wordBank;
+ let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,blasterNoise,wordBank;
+ const lastEffects=new Map();
+ const effectIntervals={tap:90,open:160,close:120,select:100,dialogue:350,reveal:180,hide:180,shuffle:200,pick:100,step:240,land:120,slide:1200,warning:900,notification:1200};
  const voices=new Set(),gainTargets=new WeakMap();
  function ramp(param,value){if(gainTargets.get(param)===value)return;gainTargets.set(param,value);const t=audioContext.currentTime;param.cancelScheduledValues(t);param.setTargetAtTime(value,t,.06);}
  function track(source,nodes=[]){voices.add(source);source.onended=()=>{voices.delete(source);source.disconnect();nodes.forEach(n=>n.disconnect());source.onended=null;};}
@@ -13,6 +15,7 @@ const SoundWorld = (()=>{
   oscillator.connect(gain);gain.connect(bus);track(oscillator,[gain]);oscillator.start(t);oscillator.stop(t+duration+.03);
  }
  function breeze(duration=.3,volume=.08,frequency=900,bus=effects){
+  if(voices.size>48)return;
   const source=audioContext.createBufferSource(),filter=audioContext.createBiquadFilter(),gain=audioContext.createGain(),t=audioContext.currentTime;
   source.buffer=noise;filter.type='lowpass';filter.frequency.value=frequency;
   gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(volume,t+duration*.3);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
@@ -157,9 +160,26 @@ const SoundWorld = (()=>{
   if(muted||document.hidden)return;
   try{
    init();sync();
-   const now=performance.now();if(kind==='tap'&&now-lastEffect<70)return;lastEffect=now;
+   const now=performance.now(),interval=effectIntervals[kind]??65;
+   if(volumes.effects===0||now-(lastEffects.get(kind)??-Infinity)<interval)return;
+   lastEffects.set(kind,now);
    const sequence=(frequencies,spacing=.11,duration=.27)=>frequencies.forEach((f,i)=>note(f,i*spacing,duration,.11));
    switch(kind){
+    case 'open':note(440,0,.15,.045,'sine',effects,660);note(880,.06,.16,.035);break;
+    case 'select':note(740,0,.09,.045,'triangle',effects,920);break;
+    case 'dialogue':note(360,0,.09,.035,'sine',effects,480);note(430,.10,.1,.03,'sine',effects,560);note(500,.21,.1,.025);break;
+    case 'reveal':breeze(.22,.055,2000);note(620,.05,.14,.035,'sine',effects,930);break;
+    case 'hide':breeze(.18,.045,1300);note(600,0,.13,.03,'sine',effects,390);break;
+    case 'shuffle':breeze(.2,.065,1700);note(460,.03,.07,.022);note(560,.12,.08,.025);break;
+    case 'pick':note(540,0,.08,.04,'sine',effects,720);break;
+    case 'place':note(460,0,.09,.035,'sine',effects,310);break;
+    case 'ready':note(523,0,.14,.06);note(784,.12,.2,.065);break;
+    case 'draw':breeze(.16,.035,1600);note(220,0,.2,.025,'triangle',effects,420);break;
+    case 'step':note(170,0,.065,.022,'sine',effects,95);break;
+    case 'land':note(155,0,.13,.045,'sine',effects,70);breeze(.09,.035,600);break;
+    case 'slide':note(230,0,.2,.03,'triangle',effects,150);breeze(.2,.025,850);break;
+    case 'warning':note(660,0,.1,.04);note(660,.16,.1,.03);break;
+    case 'notification':note(660,0,.16,.04);note(880,.1,.23,.035);break;
     case 'blaster-laser':case 'blaster-explosion':case 'blaster-crash':blasterSound(kind);break;
     case 'pirate-swish':breeze(.3,.09,1800);note(360,.05,.3,.075,'sine',effects,180);note(240,.24,.18,.055,'triangle',effects,400);break;
     case 'arrow':breeze(.3,.11,2400);note(250,0,.13,.05,'triangle',effects,620);break;
@@ -190,8 +210,17 @@ const SoundWorld = (()=>{
   }catch{/* Browsers without audio can still run the game. */}
  }
  function setVolume(key,value){if(!(key in defaults))return;volumes[key]=Math.max(0,Math.min(1,Number(value)));try{localStorage.setItem('ximena-audio',JSON.stringify(volumes));}catch{}sync();}
- function toggle(){muted=!muted;if(!muted)play('tap');else sync();}
- return {play,sync,toggle,setVolume,speakWord,get volumes(){return {...volumes};}};
+ function previewVolume(key){
+  if(!(key in defaults)||muted||document.hidden||volumes[key]===0)return;
+  try{
+   init();sync();const now=performance.now(),id=`volume:${key}`;
+   if(now-(lastEffects.get(id)??-Infinity)<180)return;lastEffects.set(id,now);
+   if(key==='ambience')breeze(.35,.16,900,ambience);
+   else note(key==='music'?523:680,0,.18,.09,'sine',key==='music'?music:effects);
+  }catch{/* Volume controls also work without audio support. */}
+ }
+ function toggle(){muted=!muted;if(!muted)play('select');else sync();}
+ return {play,sync,toggle,setVolume,previewVolume,speakWord,get volumes(){return {...volumes};}};
 })();
 // Recorded words share the game's audio route, including screen mirroring.
 const DictionarySpeech=(()=>{
@@ -241,9 +270,17 @@ const DictionarySpeech=(()=>{
 })();
 
 document.addEventListener('visibilitychange',()=>SoundWorld.sync());
-// Clicks only: pointer movement and dragging do not make button sounds.
+// Only unowned button actions receive a fallback. Games and dialogs sound at
+// their actual state change, including keyboard, touch and asynchronous results.
 document.addEventListener('click',event=>{
- const button=event.target.closest('button');if(!button||button.disabled||button.closest('[inert]'))return;
- if(['find','memory','connect','memory-shell','memory-pearl'].includes(button.dataset.play)||button.dataset.island!==undefined||button.dataset.ocean||button.dataset.answer||['sound','next','game','pronounce'].includes(button.dataset.action))return;
- SoundWorld.play(button.dataset.action==='flip'?'flip':button.dataset.action==='preview'?'locked':button.dataset.action==='map'?'close':'tap');
+ const button=event.target.closest('button,a[data-action]');if(!button||button.matches(':disabled')||button.getAttribute('aria-disabled')==='true'||button.closest('[inert]'))return;
+ const {action,play,island,ocean,islandToy,roomDecoy,luceroRoute,voyage}=button.dataset;
+ if(play||island!==undefined||ocean||islandToy||roomDecoy!==undefined||luceroRoute!==undefined||voyage||button.dataset.answer||['messi','new-islands'].includes(button.dataset.ui)||['sound','next','game','pronounce','coin-redeem','select-profile','route-gate'].includes(action))return;
+ if(button.matches('[data-archery-bow],.platform-owl,.marine-close,.marine-continue,.inactivity-close,.inactivity-continue,.recenter-map'))return;
+ const cue=action==='flip'?'flip':action==='preview'?'locked':action==='map'?'close':
+  ['dictionary','collection','profile','audio-settings','coin-shop'].includes(action)||button.dataset.lesson!==undefined?'open':
+  button.dataset.ui==='mission'?(button.getAttribute('aria-expanded')==='true'?'close':'open'):button.dataset.theme?'select':'tap';
+ SoundWorld.play(cue);
 },true);
+// Preview the chosen mix on release or keyboard change, not on every drag frame.
+document.addEventListener('change',event=>{if(event.target.dataset.volume)SoundWorld.previewVolume(event.target.dataset.volume);});

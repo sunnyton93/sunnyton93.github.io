@@ -303,7 +303,7 @@ function beginArchery(){
  round.archeryStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
  round.balloons=archeryOptions(round);resetArcheryWindow(round);
  startGameClock();
- SoundWorld.play('tap');render();document.querySelector('[data-archery-bow]')?.focus({preventScroll:true});
+ SoundWorld.play('ready');render();document.querySelector('[data-archery-bow]')?.focus({preventScroll:true});
 }
 function archeryOptions(round){
  const correct=round.order[round.attempt%round.order.length];
@@ -383,6 +383,7 @@ document.addEventListener('pointermove',event=>{
  if(!drag.moved)return;
  event.preventDefault();
  if(!drag.preview){
+  SoundWorld.play('pick');
   const rect=drag.button.getBoundingClientRect();
   drag.preview=drag.button.cloneNode(true);
   // The floating copy lives outside the board: preserve its responsive styles.
@@ -407,10 +408,13 @@ document.addEventListener('pointerup',event=>{
  const drag=connectDrag;if(!drag||event.pointerId!==drag.pointerId)return;
  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.connect-board .pair-card');
  clearConnectDrag();
- if(!drag.moved)return;
+ if(adventure!==drag.round)return;
+ // A prevented pointerdown can suppress Safari's touch click. Accept the tap
+ // here for every pointer, and ignore any compatibility click that follows.
  suppressConnectClick=true;setTimeout(()=>{suppressConnectClick=false;},0);
  event.preventDefault();event.stopPropagation();
- if(adventure!==drag.round||!target||target===drag.button||target.disabled||target.dataset.side===drag.button.dataset.side)return;
+ if(!drag.moved){handleAdventure(drag.button);return;}
+ if(!target||target===drag.button||target.disabled||target.dataset.side===drag.button.dataset.side){SoundWorld.play('place');return;}
  adventure.picks=[`${drag.button.dataset.side}-${drag.button.dataset.id}`];
  handleAdventure(target);
 });
@@ -430,6 +434,7 @@ document.addEventListener('pointerdown',event=>{
  if(adventure.done||!handle.isConnected)return;
  event.preventDefault();event.stopPropagation();
  archeryAim={handle,pointerId:event.pointerId,round:adventure,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,moved:false};
+ SoundWorld.play('draw');
  handle.setPointerCapture(event.pointerId);document.querySelector('.archery-field').classList.add('is-aiming');
  document.querySelector('.archery-feedback').textContent='';
 });
@@ -458,7 +463,7 @@ document.addEventListener('pointerup',event=>{
 });
 document.addEventListener('pointercancel',event=>{if(archeryAim?.pointerId===event.pointerId)cancelArcheryAim();});
 document.addEventListener('lostpointercapture',event=>{if(archeryAim?.pointerId===event.pointerId)cancelArcheryAim();});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&archeryAim){event.preventDefault();event.stopImmediatePropagation();cancelArcheryAim();}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&archeryAim){event.preventDefault();event.stopImmediatePropagation();cancelArcheryAim();SoundWorld.play('hide');}});
 window.addEventListener('resize',cancelArcheryAim);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelArcheryAim();});
 document.addEventListener('click',event=>{
@@ -638,6 +643,7 @@ function scheduleGameTurn(round){
   }
   round.pending=false;round.checked=false;round.wrong=[];
   if(round.mode==='find'&&round.step===round.target)finishAdventure();
+  if(!round.done)SoundWorld.play(round.mode==='memory'?'hide':'shuffle');
   render();animateAdventure('advance',{dataset:{}},0);
   if(restoreFocus)document.querySelector(round.done?'[data-play="restart"]':`[data-play="${round.mode}"]:not(:disabled)`)?.focus({preventScroll:true});
  },round.memoryExhausted?1200:500);
@@ -742,7 +748,7 @@ function adventureView(){
 }
 function handleAdventure(button){
  const a=adventure,action=button.dataset.play,id=Number(button.dataset.id);if(!a||button.disabled)return;
- if(action==='unlock-close'&&a.done){a.unlockDismissed=true;render();document.querySelector('[data-play="restart"]')?.focus({preventScroll:true});return;}
+ if(action==='unlock-close'&&a.done){a.unlockDismissed=true;SoundWorld.play('close');render();document.querySelector('[data-play="restart"]')?.focus({preventScroll:true});return;}
  if(action==='route'&&a.done&&a.mode===lastGameMode(a.index)&&islandComplete(a.index)){
   const destination=Number(button.dataset.destination);
   if(nextIslands(a.index).includes(destination)){if(luceroRouteClosed(oceanIslands[destination]))openLuceroGate();else voyageToIsland(a.index,destination);}
@@ -758,14 +764,15 @@ function handleAdventure(button){
  a.wrong=[];
  if(action==='mode'){
   if(!isGameUnlocked(a.index,button.dataset.mode,a.developerAccess)||(button.dataset.mode===a.mode&&!a.done))return;
+  SoundWorld.play('select');
   startAdventure(a.index,button.dataset.mode,a.developerAccess);render();return;
  }
- if(action==='restart')startAdventure(a.index,a.mode,a.developerAccess);
- else if(action==='next'&&a.done){const modes=progressionModes(a.index),next=modes.indexOf(a.mode)+1;if(next<modes.length){startAdventure(a.index,modes[next],a.developerAccess);}else if(!islandComplete(a.index)){startAdventure(a.index,progressionModes(a.index).find(mode=>!islandProgress[`${a.index}-${mode}`]),a.developerAccess);}else if(nextIslands(a.index).length===1){voyageToIsland(a.index,nextIslands(a.index)[0]);return;}else if(nextIslands(a.index).length>1){render();return;}else{screen='map';render();return;}}
+ if(action==='restart'){SoundWorld.play('retry');startAdventure(a.index,a.mode,a.developerAccess);}
+ else if(action==='next'&&a.done){const modes=progressionModes(a.index),next=modes.indexOf(a.mode)+1;if(next<modes.length){SoundWorld.play('select');startAdventure(a.index,modes[next],a.developerAccess);}else if(!islandComplete(a.index)){SoundWorld.play('select');startAdventure(a.index,progressionModes(a.index).find(mode=>!islandProgress[`${a.index}-${mode}`]),a.developerAccess);}else if(nextIslands(a.index).length===1){voyageToIsland(a.index,nextIslands(a.index)[0]);return;}else if(nextIslands(a.index).length>1){SoundWorld.play('open');render();return;}else{SoundWorld.play('close');screen='map';render();return;}}
  else if(a.done)return;
  else if(action==='find'&&!a.pending){a.pending=true;if(id===a.order[a.step]){a.checked=true;a.notice='¡Correcto! Sigue así.';SoundWorld.play('correct');}else{a.wrong=[id];a.mistakes++;a.notice='Todavía no. Mira las opciones y prueba de nuevo.';SoundWorld.play('wrong');}}
  else if(action==='connect'&&!a.matched.includes(id)){
- const side=button.dataset.side;if(!a.picks.length||a.picks[0].startsWith(side))SoundWorld.play('tap');a.picks=a.picks.filter(p=>!p.startsWith(side));a.picks.push(`${side}-${id}`);a.notice='Busca su traducción.';
+ const side=button.dataset.side;if(!a.picks.length||a.picks[0].startsWith(side))SoundWorld.play('pick');a.picks=a.picks.filter(p=>!p.startsWith(side));a.picks.push(`${side}-${id}`);a.notice='Busca su traducción.';
  if(a.picks.length===2){if(a.picks[0].split('-')[1]===a.picks[1].split('-')[1]){a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');}a.picks=[];if(a.matched.length===a.target)finishAdventure();}
  }else if(action==='memory'&&a.picks.length<2&&!a.picks.includes(id)){
  const card=a.deck.find(c=>c.id===id);if(!card||a.matched.includes(card.word)||a.pending)return;
@@ -804,7 +811,7 @@ function beginPirate(){
  if(!ensureGameWordIcons(round,beginPirate))return;
  round.pirateStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
  preparePirateRound(round);startGameClock();
- SoundWorld.play('tap');document.querySelector('.pirate-game')?.focus({preventScroll:true});
+ document.querySelector('.pirate-game')?.focus({preventScroll:true});
 }
 function preparePirateRound(round){
  const words=islandLessons[round.index].words,word=words[round.order[round.attempt%round.order.length]];
@@ -812,7 +819,7 @@ function preparePirateRound(round){
  const correctSide=Math.random()<.5?0:1;
  const now=elapsedGameMs(round),answerWindow=pirateAnswerWindow(round.step);
  round.pirate={phase:'announce',phaseAt:now,answerWindow,answerRemaining:answerWindow,answerDeadline:null,exposureWindow:pirateExposure(round.step),exposureDeadline:null,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false,timedOut:false};
- round.pending=false;round.notice='Mira la palabra del capitán.';render();
+ round.pending=false;round.notice='Mira la palabra del capitán.';render();SoundWorld.play('dialogue');
 }
 function choosePirate(side){
  const round=adventure,p=round?.pirate;
@@ -835,7 +842,7 @@ function updatePirateRound(){
  if(screen!=='adventure'||round?.mode!=='pirate'||!round.pirateStarted||round.done||!p||document.hidden)return;
  const now=elapsedGameMs(round),age=now-p.phaseAt;
  if(p.phase==='announce'&&age>=PIRATE_DIALOGUE_MS){
-  p.phase='reveal';p.phaseAt=now;round.notice='Mira las banderas.';render();
+  p.phase='reveal';p.phaseAt=now;round.notice='Mira las banderas.';render();SoundWorld.play('reveal');
  }else if(p.phase==='reveal'&&age>=PIRATE_LIFT_MS){
   // Both timers start with the flags fully raised. Hiding never resets answer time.
   p.phase='choose';p.phaseAt=now;p.answerDeadline=now+p.answerWindow;p.exposureDeadline=now+p.exposureWindow;
@@ -843,12 +850,13 @@ function updatePirateRound(){
  }else if(pirateCanChoose(p)){
   p.answerRemaining=Math.max(0,p.answerDeadline-now);
   if(now>=p.answerDeadline){resolvePirate(round,null);return;}
-  if(p.phase==='choose'&&now>=p.exposureDeadline){p.phase='hide';p.phaseAt=now;round.notice='Recuerda de qué lado estaba.';render();return;}
+  if(p.answerRemaining<=1000&&!p.timeWarned){p.timeWarned=true;SoundWorld.play('warning');}
+  if(p.phase==='choose'&&now>=p.exposureDeadline){p.phase='hide';p.phaseAt=now;round.notice='Recuerda de qué lado estaba.';render();SoundWorld.play('hide');return;}
   if(p.phase==='hide'&&age>=PIRATE_LIFT_MS){p.phase='recall';p.phaseAt=now;render();return;}
   const meter=document.querySelector('.pirate-time');
   if(meter){meter.querySelector('i').style.transform=`scaleX(${p.answerRemaining/p.answerWindow})`;meter.setAttribute('aria-valuenow',String(Math.ceil(p.answerRemaining/1000)));meter.classList.toggle('is-urgent',p.answerRemaining<1500);}
  }else if(p.phase==='miss'&&age>=800){
-  p.phase='correct';p.phaseAt=now;const word=islandLessons[round.index].words[p.word];round.notice=`${word.en}: ${word.es}.`;render();
+  p.phase='correct';p.phaseAt=now;const word=islandLessons[round.index].words[p.word];round.notice=`${word.en}: ${word.es}.`;render();SoundWorld.play('reveal');
  }else if((p.phase==='success'&&age>=1100)||(p.phase==='correct'&&age>=2000)){
   advanceRoundAttempt(round,p.outcome);round.pending=false;
   if(round.step>=round.target){finishAdventure();render();document.querySelector('[data-play="restart"]')?.focus({preventScroll:true});}
@@ -908,8 +916,8 @@ window.addEventListener('message',event=>{
  const a=adventure,frame=document.querySelector('.blaster-frame'),data=event.data;
  if(screen!=='adventure'||a?.mode!=='blaster'||a.done||event.source!==frame?.contentWindow||event.origin!==location.origin||data?.game!=='blaster'||data.session!==a.blasterSession)return;
  if(data.type==='ready'){frame.contentWindow.postMessage({type:'configure',words:islandLessons[a.index].words},location.origin);frame.contentWindow.postMessage({type:'host-pause',paused:Boolean(document.querySelector('.inactivity-dialog[open]'))},location.origin);return;}
- if(data.type==='exit'){screen='map';render();return;}
- if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('tap');return;}
+ if(data.type==='exit'){SoundWorld.play('close');screen='map';render();return;}
+ if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('ready');return;}
  if(!a.blasterRunning||document.hidden)return;
  if(data.type==='sound'){if(['blaster-laser','blaster-explosion','blaster-crash','wrong'].includes(data.sound))SoundWorld.play(data.sound);}
  else if(data.type==='mistake')a.mistakes++;

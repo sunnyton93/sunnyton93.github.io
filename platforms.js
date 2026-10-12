@@ -58,7 +58,7 @@ function preparePlatforms(round,respawn=false){
  p.motionAt=now;p.support=-1;p.contactOffset={x:0,y:0};p.launchOffset={x:0,y:0};
  p.floats ||= platformCenters.map(()=>({depth:0,depthVelocity:0,roll:0,rollVelocity:0,pitch:0,pitchVelocity:0,rippleAt:-Infinity}));
  if(respawn||!p.rig)p.rig={gait:0,run:0,balance:0,lean:0,hair:0,head:0};
- p.particles=[];p.landedAt=null;p.lastTrail=now;p.owlAt=null;p.hovered=-1;p.ripple=null;
+ p.particles=[];p.landedAt=null;p.lastTrail=now;p.owlAt=null;p.hovered=-1;p.ripple=null;p.timeWarned=false;
  round.notice='';
  render();drawPlatforms(round,now);
 }
@@ -69,7 +69,7 @@ function beginPlatforms(){
  round.platformStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
  round.platform=SaltaPhysics.create(platformCenters);
  clearPlatformControls();preparePlatforms(round,true);
- startGameClock();SoundWorld.play('tap');
+ startGameClock();SoundWorld.play('ready');
  platformFrame=requestAnimationFrame(tickPlatforms);
  document.querySelector('.platform-scene')?.focus({preventScroll:true});
 }
@@ -102,16 +102,18 @@ function tickPlatforms(){
  let right=platformKeys.has('right'),left=platformKeys.has('left'),down=platformKeys.has('down'),up=platformKeys.has('up');
  for(const direction of platformPointers.values()){right ||= direction==='right';left ||= direction==='left';down ||= direction==='down';up ||= direction==='up';}
  consumePlatformJump(round,now);
- const landedAt=p.landedAt;
+ const landedAt=p.landedAt,wasSliding=p.sliding;
  SaltaPhysics.advance(p,dt/1000,{x:Number(right)-Number(left)+platformJoystick.x,y:Number(down)-Number(up)+platformJoystick.y});
- if(p.landedAt!==landedAt){platformBurst(p,now,p.x,114+p.y*.68,'sand',8);consumePlatformJump(round,now);}
+ if(p.landedAt!==landedAt){platformBurst(p,now,p.x,114+p.y*.68,'sand',8);SoundWorld.play('land');consumePlatformJump(round,now);}
+ if(p.sliding&&!wasSliding&&!p.fell)SoundWorld.play('slide');
  if(p.fell&&p.phase!=='fall')fallPlatforms(round,now);
  if(!document.hidden){
   if(['prepare','seek','collapse'].includes(p.phase)){
-   if(p.walking&&!p.airborne&&p.rider>=0&&now-p.lastTrail>180){platformBurst(p,now,p.x,114+p.y*.68,'sand',2);p.lastTrail=now;}
+   if(p.walking&&!p.airborne&&p.rider>=0&&now-p.lastTrail>180){platformBurst(p,now,p.x,114+p.y*.68,'sand',2);SoundWorld.play('step');p.lastTrail=now;}
    const support=p.airborne?-1:platformAt(p.x,p.y,p.centers);
    if(p.phase==='prepare'&&now-p.phaseAt>=1100){p.phase='seek';p.phaseAt=now;SoundWorld.play('tap');}
    if(p.phase==='seek'&&now>=p.deadline){p.phase='collapse';p.phaseAt=now;SoundWorld.play('sink');}
+   if(p.phase==='seek'&&p.deadline-now<=1000&&!p.timeWarned){p.timeWarned=true;SoundWorld.play('warning');}
    if(p.phase==='collapse'&&now-p.phaseAt>=1100){
     if(support===p.safe&&p.jumpAt===null){p.phase='success';p.phaseAt=now;round.streak++;round.notice='¡A salvo! Encontraste la palabra.';platformBurst(p,now,p.x,80+p.y*.68,'gold',28);SoundWorld.play(round.streak>1?'combo':'correct');}
     // A jump can buy landing time, but can never skip the survival check.

@@ -5,7 +5,7 @@ function oceanScene() {
  return `<div class="ocean-atmosphere" aria-hidden="true"><div class="sunshine"><span>☀</span></div><div class="cloud cloud-one"></div><div class="cloud cloud-two"></div><div class="light-rays"></div><div class="ocean-wave wave-one"></div><div class="ocean-wave wave-two"></div><div class="ocean-wave wave-three"></div>${Array.from({length:12},(_,i)=>`<i class="sea-glint" style="--i:${i};left:${7+i*8}%;top:${36+(i*13)%55}%">✧</i>`).join('')}<div class="gulls">⌁ &nbsp; ⌁ &nbsp; ⌁</div><div class="reef reef-left">${seaweed()}</div><div class="reef reef-right">${seaweed()}</div></div><div class="ocean-toys"><button class="sea-friend swimming-fish" data-ocean="fish" aria-label="Saludar al pez" title="¡Tócame!">${animal('fish')}<span>Fish · Pez</span></button><button class="sea-friend swimming-turtle" data-ocean="turtle" aria-label="Saludar a la tortuga">${animal('turtle')}<span>Turtle · Tortuga</span></button><button class="sea-friend curious-octopus" data-ocean="octopus" aria-label="Saludar al pulpo">${animal('octopus')}<span>Octopus · Pulpo</span></button><button class="treasure-toy" data-ocean="treasure" aria-label="Abrir el cofre de la isla"><span class="chest-light"></span><span class="chest-lid"></span><span class="chest-base">✦</span><small>¡Tócame!</small></button>${Array.from({length:5},(_,i)=>`<button class="touch-bubble" style="--i:${i};left:${12+i*18}%" data-ocean="bubble" aria-label="Reventar burbuja"></button>`).join('')}</div>`;
 }
 function seaweed(){return '<svg viewBox="0 0 160 140"><g fill="none" stroke-linecap="round"><path d="M65 145Q25 100 56 43M80 145Q115 92 84 14M97 145Q137 130 129 65" stroke="#278c86" stroke-width="15"/><path d="M41 145Q17 128 23 91M110 145Q161 107 149 97" stroke="#5fbaa0" stroke-width="11"/><path d="M74 145Q54 106 79 77" stroke="#a4d290" stroke-width="9"/></g></svg>';}
-function announceOcean(message){const toast=document.querySelector('#toast');clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');toastTimer=setTimeout(()=>toast.classList.remove('show'),3000);}
+function announceOcean(message,cue='notification'){const toast=document.querySelector('#toast');clearTimeout(toastTimer);toast.textContent=message;toast.classList.add('show');if(cue)SoundWorld.play(cue);toastTimer=setTimeout(()=>toast.classList.remove('show'),3000);}
 function burst(x,y,count=15){if(calm)return;const colors=['#ffc45b','#3bcbb0','#ff9b8a','#ac95e4','#fff4c9'];for(let i=0;i<count;i++){const particle=document.createElement('span');particle.className='touch-particle';particle.textContent=i%3?'✦':'●';particle.style.color=colors[i%colors.length];particle.style.left=x+'px';particle.style.top=y+'px';document.body.append(particle);const angle=i/count*Math.PI*2, distance=40+Math.random()*85;const animation=particle.animate([{transform:'translate(-50%,-50%) scale(.4)',opacity:1},{transform:`translate(${Math.cos(angle)*distance}px,${Math.sin(angle)*distance+35}px) rotate(${i*43}deg) scale(.1)`,opacity:0}],{duration:650+Math.random()*400,easing:'cubic-bezier(.1,.7,.3,1)'});animation.onfinish=()=>particle.remove();}}
 function splash(x,y){if(calm)return;const ring=document.createElement('span');ring.className='touch-ring';ring.style.left=x+'px';ring.style.top=y+'px';document.body.append(ring);const animation=ring.animate([{transform:'translate(-50%,-50%) scale(.2)',opacity:.9},{transform:'translate(-50%,-50%) scale(2.7)',opacity:0}],{duration:850,easing:'ease-out'});animation.onfinish=()=>ring.remove();}
 function refreshMotion(){document.documentElement.dataset.calm=String(calm);const control=document.querySelector('[data-ocean="motion"]');if(control){control.textContent=calm?'▶ Animar océano':'Ⅱ Pausar movimiento';control.setAttribute('aria-pressed',String(calm));}}
@@ -14,11 +14,11 @@ document.addEventListener('click',event=>{
  const target=event.target.closest('[data-ocean]');
  if(target){const kind=target.dataset.ocean;
   if(kind==='marine'||['fish','turtle','octopus'].includes(kind)){event.stopPropagation();openMarineEncounter(target,kind==='marine'?target.dataset.marineId:kind);return;}
-  if(kind==='motion'){calm=!calm;refreshMotion();syncArcheryMotion();SoundWorld.play('tap');return;}
-  if(kind==='mascot'){announceOcean('Te quiero con todo mi corazón. Atte. Sunny');}
-  else if(kind==='treasure'){target.classList.toggle('opened');announceOcean(target.classList.contains('opened')?'¡Un tesoro de estrellas! Sigue explorando para conocer nuevos amigos.':'El cofre guarda otra sorpresa para tu próxima visita.');}
+  if(kind==='motion'){calm=!calm;refreshMotion();syncArcheryMotion();SoundWorld.play('select');return;}
+  if(kind==='mascot'){announceOcean('Te quiero con todo mi corazón. Atte. Sunny',null);}
+  else if(kind==='treasure'){target.classList.toggle('opened');announceOcean(target.classList.contains('opened')?'¡Un tesoro de estrellas! Sigue explorando para conocer nuevos amigos.':'El cofre guarda otra sorpresa para tu próxima visita.',null);}
   else if(kind==='bubble'){if(target.classList.contains('popped'))return;target.classList.add('popped');setTimeout(()=>target.classList.remove('popped'),1800);}
-  const rect=target.getBoundingClientRect();burst(rect.x+rect.width/2,rect.y+rect.height/2,kind==='treasure'?32:12);SoundWorld.play(kind==='motion'?'tap':kind);return;
+  const rect=target.getBoundingClientRect();burst(rect.x+rect.width/2,rect.y+rect.height/2,kind==='treasure'?32:12);SoundWorld.play(kind==='treasure'&&!target.classList.contains('opened')?'close':kind);return;
  }
  const panel=event.target.closest('.map-panel');if(panel&&!event.target.closest('button')){splash(event.clientX,event.clientY);SoundWorld.play('splash');}
 },true);
@@ -100,7 +100,7 @@ function mountMap() {
  viewport.addEventListener('voyage-camera',event=>{const {x,y,zoom}=event.detail;mapCamera.zoom=limitMapZoom(zoom);mapCamera.x=x-viewWidth/(2*mapCamera.zoom);mapCamera.y=y-viewHeight/(2*mapCamera.zoom);paintNow();});
  const home = () => {mapCamera.zoom=MAP_ZOOM_DEFAULT;mapCamera.x=0;mapCamera.y=0;paint();};
  viewport.addEventListener('visit-landmark',event=>{const item=oceanIslands.find(island=>island.type===event.detail);if(!item)return;mapCamera.x=item.x-viewport.clientWidth*.5/(mapCamera.zoom||1);mapCamera.y=item.y-viewport.clientHeight*.48/(mapCamera.zoom||1);paint();announceOcean(`${item.name} · ${isIslandLocked(item)?'Esta isla está bloqueada.':'¡Tu aventura te espera!'}`);});
- controls.querySelector('button').addEventListener('click',event=>{event.stopPropagation();home();});
+ controls.querySelector('button').addEventListener('click',event=>{event.stopPropagation();home();SoundWorld.play('select');});
  if(!mapCamera.initialized){mapCamera.initialized=true;home();}paintNow();
  let drag=null,pinch=null;
  const pointers=new Map();
@@ -154,7 +154,7 @@ function mountMap() {
  viewport.addEventListener('pointerup',end);viewport.addEventListener('pointercancel',end);
  viewport.addEventListener('lostpointercapture',event=>{if(event.target===viewport)end(event);});
  viewport.addEventListener('pointerleave',event=>{if(!viewport.hasPointerCapture(event.pointerId))end(event);});
- viewport.addEventListener('keydown',event=>{if(event.target!==viewport)return;const offsets={ArrowLeft:[-100,0],ArrowRight:[100,0],ArrowUp:[0,-100],ArrowDown:[0,100]};if(event.key==='Home'){event.preventDefault();home();}else if(offsets[event.key]){event.preventDefault();mapCamera.x+=offsets[event.key][0];mapCamera.y+=offsets[event.key][1];paint();}});
+ viewport.addEventListener('keydown',event=>{if(event.target!==viewport)return;const offsets={ArrowLeft:[-100,0],ArrowRight:[100,0],ArrowUp:[0,-100],ArrowDown:[0,100]};if(event.key==='Home'){event.preventDefault();home();if(!event.repeat)SoundWorld.play('select');}else if(offsets[event.key]){event.preventDefault();mapCamera.x+=offsets[event.key][0];mapCamera.y+=offsets[event.key][1];paint();}});
  mapResizeObserver=new ResizeObserver(()=>{viewWidth=viewport.clientWidth;viewHeight=viewport.clientHeight;paint();});mapResizeObserver.observe(viewport);
  // Keep every illustration; animate nearby scenery only, resuming before it enters view.
  mapVisibilityObserver=new IntersectionObserver(entries=>{
@@ -392,7 +392,7 @@ function closeMarineEncounter(restoreFocus=true){
  if(!dialog)return;
  dialog.getAnimations({subtree:true}).forEach(animation=>animation.cancel());dialog.close();dialog.remove();
  document.querySelector('.full-map')?.classList.remove('marine-conversation');
- if(restoreFocus)(target?.isConnected?target:document.querySelector('.map-viewport'))?.focus({preventScroll:true});
+ if(restoreFocus){SoundWorld.play('close');(target?.isConnected?target:document.querySelector('.map-viewport'))?.focus({preventScroll:true});}
 }
 async function openMarineEncounter(target,id){
  if(screen!=='map'||islandTravelActive||marineDialog)return;
@@ -424,10 +424,11 @@ async function openMarineEncounter(target,id){
   const change=dialog.querySelector('.marine-change');change.hidden=repeat||delta===0;
   change.classList.toggle('is-loss',delta<0);change.querySelector('[data-marine-delta]').textContent=delta>0?`+${delta}`:`−${Math.abs(delta)}`;
   dialog.querySelector('.marine-result').setAttribute('aria-busy','false');
-  SoundWorld.play(repeat?'tap':effect>0?'treasure':'wrong');
+  SoundWorld.play(repeat?'dialogue':effect>0?'treasure':'wrong');
  }catch{
   if(marineDialog!==dialog)return;
   dialog.querySelector('[data-marine-speech]').textContent='No pude guardar. ¡Tócame otra vez!';
+  SoundWorld.play('notification');
   dialog.querySelector('.marine-result').setAttribute('aria-busy','false');
  }
 }

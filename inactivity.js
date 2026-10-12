@@ -102,6 +102,7 @@ function inactivitySharkArt(){return `<svg class="inactivity-shark" viewBox="0 0
 </svg>`;}
 function closeInactivityShark(){
  const dialog=activityDialog;if(!dialog)return;
+ SoundWorld.play('close');
  activityDialog=null;dialog.getAnimations({subtree:true}).forEach(animation=>animation.cancel());dialog.close();dialog.remove();
  delete document.documentElement.dataset.inactivityDialog;
  document.querySelector('.blaster-frame')?.contentWindow?.postMessage({type:'host-pause',paused:false},location.origin);
@@ -133,6 +134,7 @@ function showInactivityShark(receipt){
  });
  dialog.addEventListener('animationend',event=>{if(event.animationName==='shark-talk')dialog.classList.remove('is-speaking');});
  document.body.append(dialog);document.documentElement.dataset.inactivityDialog='true';dialog.showModal();dialog.querySelector('.inactivity-continue').focus({preventScroll:true});
+ SoundWorld.play('dialogue');
  pauseArcheryMotion();
  document.querySelector('.blaster-frame')?.contentWindow?.postMessage({type:'host-pause',paused:true},location.origin);
 }
