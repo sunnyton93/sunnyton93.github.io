@@ -3,7 +3,7 @@ const SoundWorld = (()=>{
  let volumes={...defaults};try{const saved=JSON.parse(localStorage.getItem('ximena-audio')||'{}');for(const key of Object.keys(defaults))if(Number.isFinite(saved[key]))volumes[key]=Math.max(0,Math.min(1,saved[key]));}catch{}
  let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,blasterNoise,wordBank;
  const lastEffects=new Map();
- const effectIntervals={tap:90,open:160,close:120,select:100,dialogue:350,reveal:180,hide:180,shuffle:200,pick:100,step:240,land:120,slide:1200,warning:900,notification:1200};
+ const effectIntervals={tap:90,open:160,close:120,select:100,dialogue:350,reveal:180,hide:180,shuffle:200,pick:100,step:240,land:120,slide:1200,warning:900,notification:1200,'shark-swim':4000,'shark-warning':1800,'shark-snap':900,'shark-bite':900,'shark-rise':1200,'shark-dive':1200};
  const voices=new Set(),gainTargets=new WeakMap();
  function ramp(param,value){if(gainTargets.get(param)===value)return;gainTargets.set(param,value);const t=audioContext.currentTime;param.cancelScheduledValues(t);param.setTargetAtTime(value,t,.06);}
  function track(source,nodes=[]){voices.add(source);source.onended=()=>{voices.delete(source);source.disconnect();nodes.forEach(n=>n.disconnect());source.onended=null;};}
@@ -107,6 +107,8 @@ const SoundWorld = (()=>{
  }
  function sync(){
   DictionarySpeech.sync();
+  // Try at startup; browsers that require a gesture keep this context suspended.
+  if(!master&&!muted&&!document.hidden){try{init();}catch{return;}}
   if(!master)return;
   // Keep saved volumes intact; only soften the background while reading words.
   const backgroundLevel=screen==='dictionary'?.05:1,inActivity=['game','adventure'].includes(screen);
@@ -115,7 +117,7 @@ const SoundWorld = (()=>{
   ramp(ambience.gain,volumes.ambience*backgroundLevel*(inActivity?.4:1));
   ramp(music.gain,volumes.music*backgroundLevel*(inActivity?.45:1));
   if(muted||document.hidden){clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;for(const voice of voices){try{voice.stop();}catch{}voice.onended?.();}if(audioContext.state==='running')audioContext.suspend().catch(()=>{});}
-  else {if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});if(volumes.music>0||(volumes.ambience>0&&screen==='map')){if(!loopTimer){nextMusicBeat=0;loopTimer=setInterval(beat,50);}}else{clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;}}
+  else {if(['suspended','interrupted'].includes(audioContext.state))audioContext.resume().catch(()=>{});if(volumes.music>0||(volumes.ambience>0&&screen==='map')){if(!loopTimer){nextMusicBeat=0;loopTimer=setInterval(beat,50);}}else{clearInterval(loopTimer);loopTimer=null;nextMusicBeat=0;}}
   if(!muted&&!document.hidden&&screen==='dictionary')loadWordBank().catch(()=>{});
  }
  function loadWordBank(){
@@ -203,6 +205,12 @@ const SoundWorld = (()=>{
     case 'jump':note(350,0,.18,.09,'sine',effects,850);break;
     case 'sink':breeze(.55,.12,500);note(240,0,.3,.08,'sine',effects,90);break;
     case 'splash':breeze(.32,.12,700);note(460,.04,.17,.035,'sine',effects,220);break;
+    case 'shark-swim':{const pitch=330+Math.random()*100;breeze(.28,.035,700);note(pitch,.04,.13,.018,'sine',effects,pitch*1.8);break;}
+    case 'shark-warning':note(180,0,.23,.035,'triangle',effects,260);note(240,.14,.18,.025,'sine',effects,330);break;
+    case 'shark-rise':breeze(.24,.055,1600);note(380,.02,.17,.03,'sine',effects,720);break;
+    case 'shark-dive':breeze(.4,.095,650);note(220,.04,.2,.045,'sine',effects,95);note(600,.09,.11,.025,'sine',effects,250);break;
+    case 'shark-snap':breeze(.16,.065,900);note(260,0,.1,.035,'triangle',effects,100);break;
+    case 'shark-bite':breeze(.2,.13,550);note(190,0,.16,.075,'triangle',effects,75);note(520,.08,.11,.045,'sine',effects,250);break;
     case 'locked':sequence([330,294],.13,.23);break;
     case 'close':note(540,0,.15,.07,'sine',effects,340);break;
     default:note(680,0,.11,.065,'sine',effects,880);
@@ -219,7 +227,7 @@ const SoundWorld = (()=>{
    else note(key==='music'?523:680,0,.18,.09,'sine',key==='music'?music:effects);
   }catch{/* Volume controls also work without audio support. */}
  }
- function toggle(){muted=!muted;if(!muted)play('select');else sync();}
+ function toggle(){muted=!muted;try{localStorage.setItem('ximena-audio-muted',String(muted));}catch{}if(!muted)play('select');else sync();}
  return {play,sync,toggle,setVolume,previewVolume,speakWord,get volumes(){return {...volumes};}};
 })();
 // Recorded words share the game's audio route, including screen mirroring.
@@ -270,6 +278,15 @@ const DictionarySpeech=(()=>{
 })();
 
 document.addEventListener('visibilitychange',()=>SoundWorld.sync());
+// Retrying inside a real gesture unlocks the SAME output on Safari/iPad. Keep
+// listening for later OS interruptions, but never override an explicit mute.
+function resumeSoundFromGesture(event){
+ if(!event.isTrusted||muted||document.hidden||audioContext?.state==='running')return;
+ if(event.target.closest?.('[data-action="sound"],[data-voyage="sound"]'))return;
+ if(event.type==='keydown'&&(event.repeat||['Shift','Control','Alt','Meta'].includes(event.key)))return;
+ SoundWorld.sync();
+}
+for(const event of ['pointerup','touchend','click','keydown'])document.addEventListener(event,resumeSoundFromGesture,{capture:true,passive:true});
 // Only unowned button actions receive a fallback. Games and dialogs sound at
 // their actual state change, including keyboard, touch and asynchronous results.
 document.addEventListener('click',event=>{

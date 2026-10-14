@@ -305,6 +305,11 @@ function beginArchery(){
  startGameClock();
  SoundWorld.play('ready');render();document.querySelector('[data-archery-bow]')?.focus({preventScroll:true});
 }
+function archeryBalloonScale(completedRounds){
+ // Six full rounds are practice; each later round trims the target by 3%,
+ // down to 76% after the twelve-round game. Misses do not make a round unfairly smaller.
+ return Math.max(.76,1-Math.max(0,completedRounds-5)*.04);
+}
 function archeryOptions(round){
  const correct=round.order[round.attempt%round.order.length];
  const wordIds=islandLessons[round.index].words.map(word=>word.id);
@@ -797,12 +802,12 @@ function handleAdventure(button){
 function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
 
 // Independent answer/exposure deadlines share the same pausable active-time clock.
-const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_ANSWER_MS=4000;
+const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_ANSWER_MS=3000;
 function pirateAnswerWindow(completed){return Math.max(2000,PIRATE_ANSWER_MS-completed*200);}
 function pirateExposure(completed){
- const exposure=completed<6?4000:Math.max(1500,3000-(completed-6)*250);
- // Hide 200 ms earlier, leaving at least 800 ms to answer from memory.
- return Math.min(exposure,pirateAnswerWindow(completed)-PIRATE_LIFT_MS-800);
+ // At the two-second answer-time floor, the 25% exposure leaves 1.1 seconds
+ // after the 400 ms lowering animation for the player to answer from memory.
+ return pirateAnswerWindow(completed)*.25;
 }
 function pirateCanChoose(p){return p&&['choose','hide','recall'].includes(p.phase);}
 function beginPirate(){

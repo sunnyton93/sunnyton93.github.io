@@ -18,10 +18,15 @@ function getPlatformView(){
  const game=scene.closest('.platform-game'),one=selector=>game.querySelector(selector);
  platformDom={scene,game,tiles:[...scene.querySelectorAll('[data-platform]')].sort((a,b)=>Number(a.dataset.platform)-Number(b.dataset.platform)).map(node=>({node,surface:node.querySelector('.platform-surface'),wake:node.parentElement.querySelector('.platform-wake'),ripple:node.parentElement.querySelector('.platform-weight-ripple')})),
   particles:[...scene.querySelectorAll('.platform-particle')].map(node=>({node,star:node.querySelector('path'),circle:node.querySelector('circle'),item:null,active:node.style.opacity!=='0'})),
-  actor:one('.platform-player'),pose:one('.explorer-pose'),shadow:one('.platform-shadow'),splash:one('.platform-splash'),ripple:one('.platform-touch-ring'),halo:one('.platform-landing-ring'),celebration:one('.platform-celebration'),
+  actor:one('.platform-player'),pose:one('.explorer-pose'),shadow:one('.platform-shadow'),splash:one('.platform-splash'),shark:scene.querySelector('.platform-shark'),ripple:one('.platform-touch-ring'),halo:one('.platform-landing-ring'),celebration:one('.platform-celebration'),
   clock:one('.platform-countdown'),timeFill:one('.platform-time-fill'),phase:one('.platform-phase'),owl:one('.platform-owl'),jump:one('.platform-jump'),controls:[...game.querySelectorAll('[data-direction]')],joystick:one('[data-platform-joystick]'),thumb:one('.platform-joystick-thumb')};
  platformDom.clip=scene.querySelector('#salta-clip rect');
  platformDom.rig=Object.fromEntries(['body','head','hair','fringe','eyes','brows','smile','arm-left','arm-right','forearm-left','forearm-right','leg-left','leg-right','shin-left','shin-right'].map(part=>[part,one(`.explorer-${part}`)]));
+ platformDom.sharkRig=Object.fromEntries(['swimmer','body','rear','tail','tail-tip','fin','far-fin','dorsal','mouth-inner','jaw','eye','pupil','brow','cheek','glaze','wake','trail','shadow','alert'].map(part=>[part,scene.querySelector(`.platform-shark-${part}`)]));
+ platformDom.sharkWater=['launch','landing'].map(kind=>{
+  const node=scene.querySelector(`.platform-shark-${kind}`);
+  return {kind,node,foam:node.querySelector('.shark-foam'),rings:[...node.querySelectorAll('.shark-ring')],drops:[...node.querySelectorAll('.shark-drop')]};
+ });
  platformDom.joystickRadius=platformDom.joystick.clientWidth*.3;
  return platformDom;
 }
@@ -53,12 +58,15 @@ function preparePlatforms(round,respawn=false){
  // Never start a new clue already standing on the answer.
  const occupied=platformAt(p.x,p.y,p.centers),answer=p.options.indexOf(correct);
  if(answer===occupied){const other=(answer+1+Math.floor(Math.random()*6))%7;[p.options[answer],p.options[other]]=[p.options[other],p.options[answer]];}
- p.safe=p.options.indexOf(correct);p.phase='prepare';p.phaseAt=now;p.deadline=now+1100+platformWindow(round);
+ p.safe=p.options.indexOf(correct);p.phase='prepare';p.phaseAt=now;p.sinkAt=null;p.deadline=now+1100+platformWindow(round);
  p.jumpAt=null;p.z=0;p.gapMs=0;p.last=now;p.fallAt=null;p.walking=false;p.moveX=0;p.moveY=0;p.strength=0;
  p.motionAt=now;p.support=-1;p.contactOffset={x:0,y:0};p.launchOffset={x:0,y:0};
  p.floats ||= platformCenters.map(()=>({depth:0,depthVelocity:0,roll:0,rollVelocity:0,pitch:0,pitchVelocity:0,rippleAt:-Infinity}));
  if(respawn||!p.rig)p.rig={gait:0,run:0,balance:0,lean:0,hair:0,head:0};
  p.particles=[];p.landedAt=null;p.lastTrail=now;p.owlAt=null;p.hovered=-1;p.ripple=null;p.timeWarned=false;
+ p.fallCause=null;
+ // The same animal keeps swimming across clues, wins and respawns.
+ const shark=ensurePlatformShark(p);shark.graceUntil=shark.time+1600;
  round.notice='';
  render();drawPlatforms(round,now);
 }
@@ -89,11 +97,12 @@ function consumePlatformJump(round,now){
  platformJumpRequestedAt=null;
  p.launchOffset={...p.contactOffset};platformBurst(p,p.jumpAt,p.x,114+p.y*.68,'sand',10);SoundWorld.play('jump');
 }
-function fallPlatforms(round,now){
+function fallPlatforms(round,now,cause='water'){
  const p=round.platform;if(p.phase==='fall')return;
- round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.fallAt=now;p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.rider=-1;
- round.notice=`¡Al agua! La palabra era ${islandLessons[round.index].words[round.order[round.attempt%round.order.length]].en}. ¡Vamos con otra palabra!`;
- clearPlatformControls();platformBurst(p,now,p.x,115+p.y*.68,'water',24);SoundWorld.play('splash');
+ round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.sinkAt??=now;p.fallAt=now;p.fallCause=cause;p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.rider=-1;
+ const word=islandLessons[round.index].words[round.order[round.attempt%round.order.length]].en;
+ round.notice=cause==='shark'?`¡El tiburón te mordió! Perdiste esta ronda. La palabra era ${word}.`:`¡Al agua! La palabra era ${word}. ¡Vamos con otra palabra!`;
+ clearPlatformControls();platformBurst(p,now,p.x,115+p.y*.68,'water',cause==='shark'?30:24);SoundWorld.play(cause==='shark'?'shark-bite':'splash');
 
 }
 function tickPlatforms(){
@@ -106,13 +115,15 @@ function tickPlatforms(){
  SaltaPhysics.advance(p,dt/1000,{x:Number(right)-Number(left)+platformJoystick.x,y:Number(down)-Number(up)+platformJoystick.y});
  if(p.landedAt!==landedAt){platformBurst(p,now,p.x,114+p.y*.68,'sand',8);SoundWorld.play('land');consumePlatformJump(round,now);}
  if(p.sliding&&!wasSliding&&!p.fell)SoundWorld.play('slide');
- if(p.fell&&p.phase!=='fall')fallPlatforms(round,now);
+ const sharkCaught=advancePlatformShark(p,now,dt/1000);
+ if(sharkCaught)fallPlatforms(round,now,'shark');
+ else if(p.fell&&p.phase!=='fall')fallPlatforms(round,now);
  if(!document.hidden){
   if(['prepare','seek','collapse'].includes(p.phase)){
    if(p.walking&&!p.airborne&&p.rider>=0&&now-p.lastTrail>180){platformBurst(p,now,p.x,114+p.y*.68,'sand',2);SoundWorld.play('step');p.lastTrail=now;}
    const support=p.airborne?-1:platformAt(p.x,p.y,p.centers);
    if(p.phase==='prepare'&&now-p.phaseAt>=1100){p.phase='seek';p.phaseAt=now;SoundWorld.play('tap');}
-   if(p.phase==='seek'&&now>=p.deadline){p.phase='collapse';p.phaseAt=now;SoundWorld.play('sink');}
+   if(p.phase==='seek'&&now>=p.deadline){p.phase='collapse';p.phaseAt=now;p.sinkAt=now;SoundWorld.play('sink');}
    if(p.phase==='seek'&&p.deadline-now<=1000&&!p.timeWarned){p.timeWarned=true;SoundWorld.play('warning');}
    if(p.phase==='collapse'&&now-p.phaseAt>=1100){
     if(support===p.safe&&p.jumpAt===null){p.phase='success';p.phaseAt=now;round.streak++;round.notice='¡A salvo! Encontraste la palabra.';platformBurst(p,now,p.x,80+p.y*.68,'gold',28);SoundWorld.play(round.streak>1?'combo':'correct');}
@@ -139,6 +150,295 @@ function platformEdge(p,index){
  const amount=available?0:Math.max(0,Math.min(1,(28-Math.min(vertical,diagonal))/28));
  return {amount:amount*amount*(3-2*amount),x,y};
 }
+function ensurePlatformShark(p){
+ return p.shark ||= {x:300,y:20,vx:70,vy:0,heading:0,facing:1,turnScale:1,time:0,angle:-Math.PI/2,
+  speed:.34,targetSpeed:.34,variation:Math.random()*Math.PI*2,nextTurn:3000,tailPhase:0,swimPower:.7,
+  mode:'patrol',modeAt:0,nextBite:2200+Math.random()*1800,graceUntil:1600,
+  nextBlink:1800+Math.random()*2000,blinkAt:-Infinity,nextWater:2400+Math.random()*2500,launchAt:-Infinity,landingAt:-Infinity};
+}
+function platformSharkPose(s){
+ const age=s.time-s.modeAt,biting=s.mode==='bite',windup=s.mode==='windup';
+ const progress=biting?Math.min(1,age/s.biteDuration):0,charge=windup?Math.min(1,age/s.windup):0;
+ const landing=(s.time-s.landingAt)/650;
+ const lift=biting?27*4*progress*(1-progress):0;
+ const dip=windup?Math.sin(charge*Math.PI)*3:landing>=0&&landing<1?Math.sin(landing*Math.PI)*8*(1-landing*.4):0;
+ const pitch=biting?-9*Math.sin(progress*Math.PI*2):windup?-charge*3:0;
+ const close=biting?Math.max(0,Math.min(1,(progress-.62)/.38)):0;
+ const jaw=windup?4+charge*23:biting?(progress<.62?27+11*Math.sin(progress/.62*Math.PI):4+23*(1-close*close*(3-2*close))):4;
+ const facing=s.facing===-1?-1:1,turnScale=s.turnScale??1;
+ const angle=Math.max(-.43,Math.min(.43,(s.heading||0)+facing*pitch*Math.PI/180));
+ return {age,biting,windup,progress,charge,lift,dip,pitch,jaw,facing,turnScale,angle};
+}
+function platformSceneBounds(p){return {x:-136,y:-80,width:872,height:425+Math.max(0,p.spread-1)*210+224};}
+function platformDeckPose(p,index,now){
+ const state=p.floats[index],motion=!calm&&!platformMotionPreference.matches,wave=now/1250+index*1.17;
+ const bob=motion?Math.sin(wave)*1.2+Math.sin(wave*.71+index)*.45:0;
+ const roll=state.roll*Math.PI/180,pitch=state.pitch*Math.PI/180;
+ const sunk=['collapse','success','fall'].includes(p.phase)&&index!==p.safe;
+ const progress=sunk?Math.max(0,Math.min(1,(now-(p.sinkAt??p.phaseAt))/800)):0,sink=progress*progress;
+ return {a:Math.cos(roll)*(1-sink*.04),b:Math.sin(roll)*(1-sink*.04),
+  d:(Math.cos(pitch)+Math.sin(pitch)/.68)*(1-sink*.1),lift:state.depth+bob+(motion?sink*76:0),
+  opacity:1-Math.min(1,progress*800/700),bob,wave,rippleAge:(now-state.rippleAt)/950};
+}
+function platformSharkDecks(p,now){
+ // Include the vertical stone faces and their strokes, not just the top hexagon.
+ const outline=[[-82,-34],[-10,-63],[10,-63],[82,-34],[82,52],[12,82],[-12,82],[-82,52]];
+ return p.centers.flatMap(([x,y],index)=>{
+  const pose=platformDeckPose(p,index,now);
+  const points=outline.map(([u,v])=>({x:x+u*pose.a,y:110+y*.68+u*pose.b+v*pose.d+pose.lift}));
+  // Reserve the resurfacing footprint too: the animal never swims into a deck
+  // that will pop back up on the next clue. Central protection is permanent.
+  const basePose=platformDeckPose({...p,phase:'prepare'},index,now);
+  const base=outline.map(([u,v])=>({x:x+u*basePose.a,y:110+y*.68+u*basePose.b+v*basePose.d+basePose.lift}));
+  if(index===0)base.push(...outline.map(([u,v])=>({x:x+u,y:110+y*.68+v})));
+  return [{index,points:platformConvexHull(pose.opacity>.01?[...points,...base]:base)}];
+ });
+}
+function platformConvexHull(points){
+ const sorted=points.slice().sort((a,b)=>a.x-b.x||a.y-b.y),cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+ const half=list=>{const hull=[];for(const point of list){while(hull.length>1&&cross(hull.at(-2),hull.at(-1),point)<=0)hull.pop();hull.push(point);}return hull.slice(0,-1);};
+ return [...half(sorted),...half(sorted.slice().reverse())];
+}
+function platformRotate(point,angle,x=0,y=0){const c=Math.cos(angle),s=Math.sin(angle),dx=point.x-x,dy=point.y-y;return {x:x+c*dx-s*dy,y:y+s*dx+c*dy};}
+function platformSharkTransform(s,point){
+ const pose=platformSharkPose(s),rotated=platformRotate({x:point.x*.74*pose.facing*pose.turnScale,y:point.y*.74},pose.angle);
+ return {x:s.x+rotated.x,y:s.y-pose.lift+pose.dip+rotated.y};
+}
+function platformSharkJaw(s){
+ const jaw=platformSharkPose(s).jaw*Math.PI/180;
+ return platformConvexHull([{x:25,y:5},{x:55,y:3},...[[54,10],[27,13]].map(([x,y])=>platformRotate({x,y},jaw,21,4))]).map(point=>platformSharkTransform(s,point));
+}
+function platformSharkHull(s){
+ const pose=platformSharkPose(s),wave=s.tailPhase,power=s.swimPower;
+ const points=[[-44,-12],[-29,-24],[-8,-28],[24,-26],[45,-16],[64,-2],[63,7],[54,15],[37,27],[8,29],[-28,22],[-44,12],[-28,-17],[-5,-46],[3,-46],[18,-16]].map(([x,y])=>({x,y}));
+ for(const [x,y] of [[-62,-4],[-88,-27],[-79,1],[-89,25],[-60,7]]){
+  points.push({x,y}); // Also encloses the resting fins used by reduced motion.
+  let point=platformRotate({x,y},Math.sin(wave-1.5)*10*power*Math.PI/180,-64,0);
+  point=platformRotate(point,Math.sin(wave-.8)*17*power*Math.PI/180,-44,1);
+  points.push(platformRotate(point,Math.sin(wave-.35)*3*power*Math.PI/180,-25,0));
+ }
+ for(const [x,y] of [[-31,-12],[-67,-5],[-67,7],[-30,14]]){
+  const point=platformRotate({x,y},Math.sin(wave-.8)*17*power*Math.PI/180,-44,1);
+  points.push(platformRotate(point,Math.sin(wave-.35)*3*power*Math.PI/180,-25,0));
+ }
+ for(const [x,y] of [[-6,9],[25,35],[18,14]]){points.push({x,y});points.push(platformRotate({x,y},(Math.sin(wave*.55)*9*power-(pose.biting?18:0))*Math.PI/180,1,10));}
+ for(const [x,y] of [[21,8],[58,8],[49,23],[30,27]])points.push(platformRotate({x,y},pose.jaw*Math.PI/180,21,4));
+ return platformConvexHull(points.map(point=>platformSharkTransform(s,point)));
+}
+function platformSharkPlayer(p){
+ const now=p.sharkNow??p.time,occupied=platformAt(p.x,p.y,p.centers),deck=occupied>=0?platformDeckPose(p,occupied,now):null;
+ let offsetX=0,offsetY=0;
+ if(!p.airborne&&deck){offsetX=(p.x-p.centers[occupied][0])*(Math.cos(p.floats[occupied].roll*Math.PI/180)-1);offsetY=deck.bob;}
+ else if(p.airborne){const carry=Math.max(0,1-(now-p.jumpAt)/650);offsetX=(p.launchOffset?.x||0)*carry;offsetY=(p.launchOffset?.y||0)*carry;}
+ // A forgiving core inside the visible face and torso; swinging hair/arms cannot lose a round.
+ return [[-11,-71],[11,-71],[12,-51],[8,-27],[-8,-27],[-12,-51]].map(([x,y])=>{
+  const point=platformRotate({x,y},(p.rig?.lean||0)*Math.PI/180,0,-15);
+  return {x:p.x+offsetX+point.x*(p.facing<0?-1:1),y:110+p.y*.68-p.height+offsetY+point.y};
+ });
+}
+function platformSharkCentralSafe(p){return SaltaPhysics.at(p.x,p.y,[p.centers[0]])===0;}
+function platformSharkSeparation(a,b){
+ let best=null;
+ for(const polygon of [a,b])for(let i=0;i<polygon.length;i++){
+  const u=polygon[i],v=polygon[(i+1)%polygon.length],length=Math.hypot(v.x-u.x,v.y-u.y);
+  if(length<1e-7)continue;
+  const x=-(v.y-u.y)/length,y=(v.x-u.x)/length;
+  let amin=Infinity,amax=-Infinity,bmin=Infinity,bmax=-Infinity;
+  for(const point of a){const dot=point.x*x+point.y*y;amin=Math.min(amin,dot);amax=Math.max(amax,dot);}
+  for(const point of b){const dot=point.x*x+point.y*y;bmin=Math.min(bmin,dot);bmax=Math.max(bmax,dot);}
+  if(amax<=bmin||bmax<=amin)return null;
+  const distance=amax-bmin<bmax-amin?bmin-amax:bmax-amin;
+  if(!best||Math.abs(distance)<best.depth)best={x:x*distance,y:y*distance,depth:Math.abs(distance)};
+ }
+ return best;
+}
+function platformSharkOverlap(a,b){return !!platformSharkSeparation(a,b);}
+function platformSharkMouth(s){const jaw=platformSharkJaw(s);return {x:jaw.reduce((sum,p)=>sum+p.x,0)/jaw.length,y:jaw.reduce((sum,p)=>sum+p.y,0)/jaw.length};}
+function platformSharkClear(p,s,decks){
+ const hull=platformSharkHull(s),bounds=platformSceneBounds(p);
+ return hull.every(point=>point.x>=bounds.x&&point.x<=bounds.x+bounds.width&&point.y>=bounds.y&&point.y<=bounds.y+bounds.height)&&decks.every(deck=>!platformSharkOverlap(hull,deck.points));
+}
+function platformSharkResolve(p,s,decks){
+ // Project penetration onto the nearest edge and remove only inward velocity.
+ // Substeps also catch moving decks, turning tails and the jumping silhouette.
+ const bounds=platformSceneBounds(p);
+ for(let iteration=0;iteration<16;iteration++){
+  let moved=false;
+  let body=platformSharkHull(s);
+  for(const deck of decks){
+   const push=platformSharkSeparation(body,deck.points);if(!push)continue;
+   const nx=push.x/push.depth,ny=push.y/push.depth;
+   s.x+=push.x+nx*.12;s.y+=push.y+ny*.12;
+   const inward=s.vx*nx+s.vy*ny;if(inward<0){s.vx-=inward*nx;s.vy-=inward*ny;}moved=true;body=platformSharkHull(s);
+  }
+  const hull=platformSharkHull(s),xs=hull.map(point=>point.x),ys=hull.map(point=>point.y);
+  const dx=Math.max(0,bounds.x-Math.min(...xs))+Math.min(0,bounds.x+bounds.width-Math.max(...xs));
+  const dy=Math.max(0,bounds.y-Math.min(...ys))+Math.min(0,bounds.y+bounds.height-Math.max(...ys));
+  s.x+=dx;s.y+=dy;if(dx)s.vx=0;if(dy)s.vy=0;
+  if(!moved&&!dx&&!dy)break;
+ }
+}
+function platformSharkAttackPlan(p,s,decks,target){
+ if(s.turnScale<.98)return null;
+ const player=platformSharkPlayer(p),head={x:(player[0].x+player[1].x)/2,y:(player[0].y+player[2].y)/2};
+ const targets=target?[target]:[head,{x:head.x-5,y:head.y+8},{x:head.x+5,y:head.y+8}];
+ for(const point of targets){
+  if(Math.hypot(point.x-s.x,point.y-s.y)>170||(point.x-s.x)*s.facing<5)continue;
+  const preview={...s,x:0,y:0,mode:'bite',modeAt:0,time:435,biteDuration:580};
+  const mouth=platformSharkMouth(preview),end={x:point.x-mouth.x,y:point.y-mouth.y};
+  if(Math.hypot(end.x-s.x,end.y-s.y)>145)continue;
+  let clear=true;
+  for(let i=0;i<=24&&clear;i++){
+   const t=i/24,u=Math.min(1,t/.72),ease=u*u*(3-2*u);
+   Object.assign(preview,{x:s.x+(end.x-s.x)*ease,y:s.y+(end.y-s.y)*ease,time:t*580,
+    tailPhase:s.tailPhase+t*10,swimPower:1.4});
+   clear=platformSharkClear(p,preview,decks);
+  }
+  if(clear)return {target:{...point},end};
+ }
+ return null;
+}
+function advancePlatformShark(p,now,seconds){
+ const s=ensurePlatformShark(p),height=425+Math.max(0,p.spread-1)*210;
+ p.sharkNow=now;const decks=platformSharkDecks(p,now);let caught=false;
+ // Small steps keep steering and the contact window reliable on slower frames.
+ for(let remaining=Math.min(.1,Math.max(0,seconds));remaining>1e-6;){
+  const dt=Math.min(1/120,remaining);remaining-=dt;s.time+=dt*1000;
+  if(s.time>=s.nextTurn){s.targetSpeed=.28+Math.random()*.16;s.nextTurn=s.time+2800+Math.random()*4200;}
+  s.speed+=(s.targetSpeed-s.speed)*(1-Math.exp(-dt*.7));s.angle+=s.speed*dt;
+  const wave=s.time/1000,variation=s.variation;
+  const radiusX=294+Math.max(0,p.spread-1)*120+5*Math.sin(wave*.49+variation);
+  const radiusY=height/2+44+6*Math.sin(wave*.37+variation);
+  const orbit={x:300+radiusX*Math.cos(s.angle),y:height/2+32+radiusY*Math.sin(s.angle)};
+  const playing=['seek','collapse'].includes(p.phase)&&!p.fell&&!platformSharkCentralSafe(p);
+  if(s.mode==='patrol'&&playing&&s.time>=Math.max(s.nextBite,s.graceUntil,s.nextPlan||0)){
+   s.nextPlan=s.time+180;
+   const plan=platformSharkAttackPlan(p,s,decks);
+   if(plan){
+    s.mode='windup';s.modeAt=s.time;s.target=plan.target;s.windup=580+Math.random()*200;
+    s.biteDuration=580;s.hit=false;s.splashed=false;
+    SoundWorld.play('shark-warning');
+   }
+  }
+  if(s.mode==='windup'&&(!playing||s.time<s.graceUntil)){
+   s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+3000+Math.random()*3500;
+  }
+  if(s.mode==='windup'&&s.time-s.modeAt>=s.windup){
+   const plan=platformSharkAttackPlan(p,s,decks,s.target);
+   if(plan){
+    s.mode='bite';s.modeAt=s.time;s.start={x:s.x,y:s.y};s.end=plan.end;
+    s.launchAt=s.time;s.launchX=s.x;s.launchY=s.y;SoundWorld.play('shark-rise');
+   }else{s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+1800;}
+  }
+  let lookX,lookY;
+  if(s.mode==='bite'){
+   const age=Math.min(1,(s.time-s.modeAt)/s.biteDuration),u=Math.min(1,age/.72),ease=u*u*(3-2*u);
+   const x=s.start.x+(s.end.x-s.start.x)*ease,y=s.start.y+(s.end.y-s.start.y)*ease;
+   s.vx=(x-s.x)/dt;s.vy=(y-s.y)/dt;s.x=x;s.y=y;
+   lookX=s.vx;lookY=s.vy;
+   // Obstacles can move during the lunge. Resolve them before testing the teeth.
+   platformSharkResolve(p,s,decks);
+   if(age>=.66&&!s.splashed){
+    s.splashed=true;
+    if(!s.hit)SoundWorld.play('shark-snap');
+   }
+   if(age>=1){
+    s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+3000+Math.random()*3800;
+    // Rejoin the perimeter at the current bearing; never cut across the islands.
+    s.angle=Math.atan2((s.y-height/2-32)/radiusY,(s.x-300)/radiusX);
+    s.landingAt=s.time;s.landingX=s.x;s.landingY=s.y;
+    platformBurst(p,now,s.x,s.y+12,'water',16);SoundWorld.play('shark-dive');
+   }
+  }else{
+   const waiting=s.mode==='windup',dx=orbit.x-s.x,dy=orbit.y-s.y;
+   const length=Math.hypot(dx,dy)||1,speed=waiting?0:Math.min(120,length*2.8);
+   const blend=1-Math.exp(-dt*(waiting?7:3.5));
+   s.vx+=(dx/length*speed-s.vx)*blend;s.vy+=(dy/length*speed-s.vy)*blend;
+   s.x+=s.vx*dt;s.y+=s.vy*dt;
+   lookX=s.vx;lookY=s.vy;
+   if(s.mode==='recover'&&s.time-s.modeAt>850){s.mode='patrol';s.modeAt=s.time;}
+  }
+  // Turn side-on through a narrow silhouette, with limited pitch. Swimming
+  // down changes the fin strokes, never rotates the animal upside down.
+  if(!['bite','windup'].includes(s.mode)&&Math.hypot(lookX,lookY)>.1){
+   const facing=Math.abs(lookX)>12?Math.sign(lookX):s.facing;
+   s.turnScale+=(facing===s.facing?1:-1)*(dt*2.6);
+   s.turnScale=Math.max(.4,Math.min(1,s.turnScale));
+   if(s.turnScale<=.4)s.facing=facing;
+   const pitch=Math.max(-.27,Math.min(.27,Math.atan2(lookY,Math.abs(lookX)+65)*.25))*s.facing;
+   s.heading+=(pitch-s.heading)*(1-Math.exp(-dt*3));
+  }
+  const effort=Math.min(1.4,.35+Math.hypot(s.vx,s.vy)/110);
+  s.swimPower+=(effort-s.swimPower)*(1-Math.exp(-dt*5));
+  // Keep the tail's phase through accelerations, attacks and round changes.
+  s.tailPhase+=dt*(6+s.swimPower*7);
+  platformSharkResolve(p,s,decks);
+  const contact=platformSharkPose(s);
+  if(contact.biting&&contact.progress>=.62&&contact.progress<=.98&&!s.hit&&playing&&s.time>=s.graceUntil&&
+   platformSharkClear(p,s,decks)&&platformSharkOverlap(platformSharkJaw(s),platformSharkPlayer(p))){s.hit=true;caught=true;break;}
+  if(s.time>=s.nextBlink){s.blinkAt=s.time;s.nextBlink=s.time+2200+Math.random()*3600;}
+  if(s.time>=s.nextWater){if(s.mode==='patrol')SoundWorld.play('shark-swim');s.nextWater=s.time+4300+Math.random()*4200;}
+ }
+ return caught;
+}
+function drawPlatformShark(view,p,motion){
+ const s=ensurePlatformShark(p),rig=view.sharkRig,pose=platformSharkPose(s);
+ const {windup,biting,lift,dip,jaw,facing,turnScale}=pose,heading=pose.angle*180/Math.PI;
+ const wave=s.tailPhase,power=motion?s.swimPower:0;
+ platformAttribute(view.shark,'transform',`translate(${s.x.toFixed(2)} ${s.y.toFixed(2)})`);
+ platformAttribute(view.shark,'data-behavior',s.mode);
+ // Lift is vertical in the scene, independent of the direction of the swim.
+ platformAttribute(rig.swimmer,'transform',`translate(0 ${(-lift+dip).toFixed(2)}) rotate(${heading.toFixed(2)}) scale(${(.74*facing*turnScale).toFixed(4)} .74)`);
+ platformAttribute(rig.body,'transform','translate(0 0)');
+ platformAttribute(rig.rear,'transform',`rotate(${(Math.sin(wave-.35)*3*power).toFixed(2)} -25 0)`);
+ platformAttribute(rig.tail,'transform',`rotate(${(Math.sin(wave-.8)*17*power).toFixed(2)} -44 1)`);
+ platformAttribute(rig['tail-tip'],'transform',`rotate(${(Math.sin(wave-1.5)*10*power).toFixed(2)} -64 0)`);
+ platformAttribute(rig.fin,'transform',`rotate(${(Math.sin(wave*.55)*9*power-(biting?18:0)).toFixed(2)} 1 10)`);
+ platformAttribute(rig['far-fin'],'transform',`rotate(${(-Math.sin(wave*.55+.8)*8*power).toFixed(2)} -4 -2)`);
+ platformAttribute(rig.dorsal,'transform',`rotate(${(Math.sin(wave-.5)*3*power).toFixed(2)} -8 -16)`);
+ // Rotate a rigid lower jaw: individual teeth retain their shape when it opens.
+ platformAttribute(rig.jaw,'transform',`rotate(${jaw.toFixed(2)} 21 4)`);
+ const jawAngle=jaw*Math.PI/180,lipX=21+33*Math.cos(jawAngle)-6*Math.sin(jawAngle),lipY=4+33*Math.sin(jawAngle)+6*Math.cos(jawAngle);
+ platformAttribute(rig['mouth-inner'],'d',`M21 4Q39 9 55 3L${lipX.toFixed(2)} ${lipY.toFixed(2)}Q32 ${(lipY+6).toFixed(2)} 21 10Z`);
+ const blinkAge=s.time-s.blinkAt,blink=motion&&blinkAge<160?Math.max(.08,Math.abs(blinkAge-80)/80):1;
+ platformAttribute(rig.eye,'transform',`translate(35 -12) scale(1 ${(blink*(windup?.86:1)).toFixed(3)}) translate(-35 12)`);
+ const dx=p.x-s.x,dy=110+p.y*.68-30-s.y,localX=(dx*Math.cos(pose.angle)+dy*Math.sin(pose.angle))*facing,localY=-dx*Math.sin(pose.angle)+dy*Math.cos(pose.angle);
+ platformAttribute(rig.pupil,'transform',`translate(${Math.max(-1.6,Math.min(1.6,localX/75)).toFixed(2)} ${Math.max(-1.2,Math.min(1.2,localY/75)).toFixed(2)})`);
+ platformAttribute(rig.brow,'d',windup||biting?'M27-23q7 0 16 7':'M27-22q8-7 16-1');
+ platformAttribute(rig.cheek,'d',biting?'M17 2q-2 5 1 8':'M17 3q2-3 6-2');
+ rig.glaze.style.opacity=biting?0:.14+dip*.04;
+ rig.swimmer.style.opacity=1-dip*.025;
+ platformAttribute(rig.shadow,'rx',(33-lift*.35).toFixed(2));rig.shadow.style.opacity=.12-lift*.002;
+ platformAttribute(rig.wake,'rx',43+(motion?Math.sin(wave*.5)*3:0));
+ rig.wake.style.opacity=biting?.16:.5;
+ platformAttribute(rig.trail,'transform',`rotate(${heading.toFixed(2)}) scale(${.74*facing*turnScale} .74)`);
+ rig.trail.style.opacity=biting?.1:.3+power*.22;
+ platformAttribute(rig.trail,'stroke-dashoffset',motion?(-s.time/55).toFixed(2):0);
+ rig.alert.style.opacity=windup?1:0;
+ platformAttribute(rig.alert,'transform','translate(6 -46)');
+ for(const water of view.sharkWater){
+  const age=(s.time-s[`${water.kind}At`])/1000;
+  if(!motion||age<0||age>1.25){water.node.style.opacity=0;continue;}
+  water.node.style.opacity=1;
+  // These anchors stay in the water while the animal moves on.
+  platformAttribute(water.node,'transform',`translate(${(s[`${water.kind}X`]-s.x).toFixed(2)} ${(s[`${water.kind}Y`]-s.y+12).toFixed(2)})`);
+  const impact=water.kind==='landing'?1:.7;
+  water.rings.forEach((ring,i)=>{
+   const t=Math.max(0,age-i*.12);
+   platformAttribute(ring,'rx',(18+t*48*impact).toFixed(2));platformAttribute(ring,'ry',(5+t*16*impact).toFixed(2));
+   ring.style.opacity=age>=i*.12?Math.max(0,1-t/1.05)*(.7-i*.15):0;
+  });
+  const crown=Math.max(0,1-age/.42);
+  water.foam.style.opacity=crown;
+  platformAttribute(water.foam,'transform',`scale(${(.6+age*2).toFixed(2)} ${(Math.sin(Math.min(1,age/.42)*Math.PI)*impact).toFixed(2)})`);
+  water.drops.forEach((drop,i)=>{
+   const side=i%2?-1:1,speed=27+(i%4)*16,t=age;
+   const x=side*speed*t*impact,y=-(62+(i%3)*22)*t*impact+125*t*t;
+   const opacity=Math.max(0,1-t/(.5+(i%3)*.12));drop.style.opacity=opacity;
+   platformAttribute(drop,'transform',`translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(side*t*90).toFixed(2)}) scale(${(1-t*.4).toFixed(2)})`);
+  });
+ }
+}
 function updatePlatformMotion(p,now,motion){
  const dt=Math.min(.04,Math.max(0,(now-(p.motionAt??now))/1000));p.motionAt=now;
  const occupied=platformAt(p.x,p.y,p.centers),collapsing=['collapse','success','fall'].includes(p.phase);
@@ -152,14 +452,10 @@ function updatePlatformMotion(p,now,motion){
  p.support=support;
  let passengerX=0,passengerY=0;
  const surfaces=p.floats.map((state,index)=>{
-  const loaded=index===support,dx=loaded?p.x-p.centers[index][0]:0,dy=loaded?p.y-p.centers[index][1]:0;
-  const wave=now/1250+index*1.17;
-  const bob=motion?Math.sin(wave)*1.2+Math.sin(wave*.71+index)*.45:0;
-  const roll=state.roll*Math.PI/180,pitch=state.pitch*Math.PI/180;
-  const a=Math.cos(roll),b=Math.sin(roll),d=Math.cos(pitch)+Math.sin(pitch)/.68;
-  if(loaded){passengerX=dx*(a-1);passengerY=bob;}
+  const loaded=index===support,dx=loaded?p.x-p.centers[index][0]:0,pose=platformDeckPose(p,index,now);
+  if(loaded){passengerX=dx*(Math.cos(state.roll*Math.PI/180)-1);passengerY=pose.bob;}
   // Essential tilt remains visible with reduced motion; only decorative bobbing stops.
-  return {lift:state.depth+bob,a,b,d,wave,rippleAge:(now-state.rippleAt)/950};
+  return pose;
  });
  if(grounded)p.contactOffset={x:passengerX,y:passengerY};
  if(p.airborne){const carry=Math.max(0,1-(now-p.jumpAt)/650);passengerX=p.launchOffset.x*carry;passengerY=motion?p.launchOffset.y*carry:0;}
@@ -215,8 +511,9 @@ function drawPlatforms(round,now){
  const view=getPlatformView();if(!view)return;
  const {scene,game}=view;
  const p=round.platform,remaining=Math.max(0,p.deadline-now),falling=p.phase==='fall';
- const sceneHeight=(425+Math.max(0,p.spread-1)*210).toFixed(2);
- platformAttribute(scene,'viewBox',`0 0 600 ${sceneHeight}`);platformAttribute(view.clip,'height',sceneHeight);
+ const bounds=platformSceneBounds(p);
+ platformAttribute(scene,'viewBox',`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height.toFixed(2)}`);
+ for(const key of ['x','y','width','height'])platformAttribute(view.clip,key,bounds[key]);
  const motion=!calm&&!platformMotionPreference.matches;
  scene.classList.toggle('is-calm',!motion);
  game.classList.toggle('is-paused',document.hidden);game.classList.toggle('is-calm',!motion);
@@ -226,6 +523,7 @@ function drawPlatforms(round,now){
  const jumpButton=view.jump;jumpButton.classList.toggle('is-recharging',jumping);
  const owl=view.owl;owl.classList.toggle('is-cheering',p.phase==='success'||(p.owlAt!==null&&now-p.owlAt<900));
  if(scene.dataset.phase!==p.phase)scene.dataset.phase=p.phase;scene.classList.toggle('is-urgent',p.phase==='seek'&&remaining<1400);
+ drawPlatformShark(view,p,motion);
  const dynamics=updatePlatformMotion(p,now,motion);
  const collapsing=['collapse','success','fall'].includes(p.phase);
  view.tiles.forEach(({node:tile,surface,wake,ripple},index)=>{
@@ -234,7 +532,7 @@ function drawPlatforms(round,now){
   tile.classList.toggle('is-standing',p.support===index);
   tile.classList.toggle('is-inspected',p.hovered===index);
   wake.classList.toggle('is-disturbed',sunk);
-  const {lift,a,b,d,wave,rippleAge}=dynamics.surfaces[index];
+  const {lift,a,b,d,wave,rippleAge,opacity}=dynamics.surfaces[index];tile.style.opacity=opacity;
   const [cx,cy]=p.centers[index];platformAttribute(tile.parentElement,'transform',`translate(${cx.toFixed(2)} ${(110+cy*.68).toFixed(2)})`);
   platformAttribute(surface,'transform',`matrix(${a.toFixed(4)} ${b.toFixed(4)} 0 ${d.toFixed(4)} 0 ${lift.toFixed(2)})`);
   platformAttribute(wake,'rx',84+(motion?Math.sin(wave)*3:0));platformAttribute(wake,'ry',49+(motion?Math.sin(wave)*1.5:0));
@@ -243,9 +541,10 @@ function drawPlatforms(round,now){
  });
  const elapsed=falling?Math.min(1,(now-p.fallAt)/600):0;
  const actor=view.actor;
- const drop=falling?Math.min(80,SaltaPhysics.GRAVITY*((now-p.fallAt)/1000)**2/2):0;
+ const drop=falling&&p.fallCause!=='shark'?Math.min(80,SaltaPhysics.GRAVITY*((now-p.fallAt)/1000)**2/2):0;
  platformAttribute(actor,'transform',`translate(${(p.x+dynamics.passengerX).toFixed(2)} ${(110+p.y*.68-p.height+drop+dynamics.passengerY).toFixed(2)})`);
- actor.style.opacity=1-elapsed;actor.classList.toggle('is-walking',p.walking&&!falling);actor.classList.toggle('is-jumping',p.jumpAt!==null);actor.classList.toggle('is-celebrating',p.phase==='success');actor.classList.toggle('is-falling',falling);
+ const sharkEatFade=p.fallCause==='shark'?Math.min(1,(now-p.fallAt)/220):elapsed;
+ actor.style.opacity=1-sharkEatFade;actor.classList.toggle('is-walking',p.walking&&!falling);actor.classList.toggle('is-jumping',p.jumpAt!==null);actor.classList.toggle('is-celebrating',p.phase==='success');actor.classList.toggle('is-falling',falling);
  const landing=p.landedAt===null?1:Math.min(1,(now-p.landedAt)/220);
  drawPlatformExplorer(view,p,now,motion,dynamics);
  platformAttribute(view.shadow,'rx',Math.max(10,21-p.z/6));
@@ -259,9 +558,9 @@ function drawPlatforms(round,now){
  const halo=view.halo;platformAttribute(halo,'transform',`translate(${p.x} ${114+p.y*.68}) scale(${1+landing*1.4})`);halo.style.opacity=motion&&landing<1?(1-landing)*.7:0;
  const celebration=view.celebration;const center=p.centers[p.safe];platformAttribute(celebration,'transform',`translate(${center[0]} ${110+center[1]*.68})`);celebration.classList.toggle('is-active',p.phase==='success');
  const clock=view.clock;
- platformText(clock,p.phase==='prepare'?'Prepárate':p.phase==='seek'?`${(remaining/1000).toFixed(1)} s`:p.phase==='collapse'?'¡Resiste!':p.phase==='success'?'¡Muy bien!':'¡Al agua!');
+ platformText(clock,p.phase==='prepare'?'Prepárate':p.phase==='seek'?`${(remaining/1000).toFixed(1)} s`:p.phase==='collapse'?'¡Resiste!':p.phase==='success'?'¡Muy bien!':p.fallCause==='shark'?'¡Ñam!':'¡Al agua!');
  view.timeFill.style.transform=`scaleX(${p.phase==='prepare'?1:Math.min(1,remaining/platformWindow(round))})`;
- platformText(view.phase,p.phase==='prepare'?'MIRA LA IMAGEN':p.phase==='seek'?'BUSCA SU PALABRA':p.phase==='collapse'?'¡LAS PLATAFORMAS SE HUNDEN!':p.phase==='success'?'¡PALABRA CONSEGUIDA!':'¡VAMOS OTRA VEZ!');
+ platformText(view.phase,p.phase==='prepare'?'MIRA LA IMAGEN':p.phase==='seek'?'BUSCA SU PALABRA':p.phase==='collapse'?'¡LAS PLATAFORMAS SE HUNDEN!':p.phase==='success'?'¡PALABRA CONSEGUIDA!':p.fallCause==='shark'?'¡RONDA PERDIDA!':'¡VAMOS OTRA VEZ!');
 }
 function platformBurst(p,now,x,y,kind,count){
  const colors={water:['#ddfff8','#8be9ef','#ffffff'],sand:['#fff0c2','#f9da93'],gold:['#fff4a2','#ffcb57','#ffffff']};
@@ -372,7 +671,48 @@ function platformTile(lesson,p,x,y,i){
  <g class="platform-tile-glint" fill="#fffde7"><path d="m-60-30 2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5Z"/></g>
  </g></g><path class="platform-waterline" d="M-78 46q23 18 57 23m43 0q32-7 55-23" fill="none" stroke="#d9fff2" stroke-width="2.5" stroke-linecap="round" opacity=".65"/></g>`;}
 
-function platformScene(round,lesson){const p=round.platform;return `<svg class="platform-scene" viewBox="0 0 600 ${425+Math.max(0,p.spread-1)*210}" tabindex="0" role="group" aria-label="Escenario de Salta. Muévete con las flechas o WASD y salta con Espacio."><defs><clipPath id="salta-clip"><rect width="600" height="${425+Math.max(0,p.spread-1)*210}" rx="28"/></clipPath></defs><g clip-path="url(#salta-clip)"><g class="platform-islands">${p.centers.map(([x,y],i)=>({x,y,i})).sort((a,b)=>a.y-b.y||a.x-b.x).map(({x,y,i})=>platformTile(lesson,p,x,y,i)).join('')}</g><g class="platform-celebration" aria-hidden="true"><ellipse rx="65" ry="42"/><ellipse rx="78" ry="51"/><path d="m-15-78 10 10 22-25"/></g><ellipse class="platform-shadow" cx="300" cy="260" rx="20" ry="8" fill="#173f52" opacity=".26"/><g class="platform-landing-ring" fill="none" stroke="#fff2c3" stroke-width="2" opacity="0"><ellipse rx="22" ry="9"/></g><g class="platform-player" transform="translate(300 259)" aria-label="Tu exploradora">${platformExplorer()}</g><g class="platform-splash" aria-hidden="true"><ellipse rx="37" ry="13"/><ellipse rx="53" ry="21" stroke-width="2"/><path d="M-30 0-45-24M-12-3-20-35M13-3 23-34M30 0 45-21"/></g><g class="platform-touch-ring" opacity="0" fill="none" stroke="#e1fff1" stroke-width="2" pointer-events="none"><ellipse rx="24" ry="12"/><ellipse rx="34" ry="17"/></g><g class="platform-particles" aria-hidden="true" pointer-events="none">${Array.from({length:40},()=>'<g class="platform-particle" opacity="0"><circle r="1"/><path d="M0-1.5.4-.4 1.5 0 .4.4 0 1.5-.4.4-1.5 0-.4-.4Z"/></g>').join('')}</g><g class="platform-sparkles" aria-hidden="true" fill="#fffbd2"><path d="m40 200 3 7 7 3-7 3-3 7-3-7-7-3 7-3m490 88 3 7 7 3-7 3-3 7-3-7-7-3 7-3"/></g></g></svg>`;}
+function platformSharkWaterArt(kind){return `<g class="platform-shark-${kind}" opacity="0">
+ <g fill="none" stroke="#e9fff8" stroke-width="2"><ellipse class="shark-ring"/><ellipse class="shark-ring" stroke="#8ce4ef"/><ellipse class="shark-ring" stroke-width="1.4"/></g>
+ <path class="shark-foam" d="M-29 2Q-41-8-38-15q13 8 20 5Q-20-28-13-33q3 19 11 20Q8-33 15-30q-6 19 2 22Q31-22 38-15q-3 13-13 18Z" fill="#a7eff2" stroke="#f3fffb" stroke-width="2" stroke-linejoin="round"/>
+ ${Array.from({length:8},(_,i)=>`<path class="shark-drop" d="M0-4Q4 0 2 3Q0 5-2 3Q-4 0 0-4Z" fill="${i%2?'#f5fffa':'#9eeaf2'}" stroke="#edfffc" stroke-width=".7"/>`).join('')}
+ </g>`;}
+function platformSharkArt(){return `<g data-static-art="salta-shark" class="platform-shark" aria-hidden="true">
+ <defs>
+  <linearGradient id="salta-shark-skin" x1="0" y1="0" x2=".3" y2="1"><stop stop-color="#9dd9e2"/><stop offset=".42" stop-color="#64a9c0"/><stop offset="1" stop-color="#376a91"/></linearGradient>
+  <linearGradient id="salta-shark-fin" x2=".5" y2="1"><stop stop-color="#6aacc6"/><stop offset="1" stop-color="#32607f"/></linearGradient>
+  <linearGradient id="salta-shark-belly" x2="0" y2="1"><stop stop-color="#fff7df"/><stop offset="1" stop-color="#c3e8df"/></linearGradient>
+ </defs>
+ <ellipse class="platform-shark-shadow" cy="14" rx="33" ry="9" fill="#144f71" opacity=".12"/>
+ <ellipse class="platform-shark-wake" cy="14" rx="43" ry="10" fill="none" stroke="#cdfff2" stroke-width="1.8" stroke-dasharray="48 14 25 20"/>
+ <g class="platform-shark-trail" fill="none" stroke="#d9fff6" stroke-width="2" stroke-linecap="round" stroke-dasharray="19 10"><path d="M-83-7q24-13 54-5M-86 12q25 12 54 4"/><path d="M-64 22q19 7 33 1" stroke-width="1.3"/></g>
+ <g class="platform-shark-swimmer"><g class="platform-shark-body" stroke-linejoin="round">
+  <path class="platform-shark-far-fin" d="M-10-4Q2-14 14-9L4 3Z" fill="#356784" stroke="#285b78" stroke-width="1.6"/>
+  <g class="platform-shark-rear"><g class="platform-shark-tail">
+   <path d="M-31-10Q-47-4-65-3L-65 5Q-46 9-30 12Z" fill="url(#salta-shark-skin)" stroke="#285b78" stroke-width="2"/>
+   <g class="platform-shark-tail-tip"><path d="M-62-2Q-72-14-85-25q2 17 9 26Q-84 12-86 22q18-5 25-17Z" fill="url(#salta-shark-fin)" stroke="#285b78" stroke-width="2"/><path d="M-81-19q5 13 14 19m-14 16 13-12" fill="none" stroke="#99d9df" stroke-width="1.5" opacity=".65"/></g>
+  </g></g>
+  <g class="platform-shark-dorsal"><path d="M-22-15Q-16-35-2-42q-1 14 17 26Z" fill="url(#salta-shark-fin)" stroke="#285b78" stroke-width="2"/><path d="M-16-21q6-11 10-13" fill="none" stroke="#abdfe3" stroke-width="1.5" stroke-linecap="round" opacity=".6"/></g>
+  <path d="M-43-2Q-27-24 3-25Q25-27 40-15Q51-12 59-3Q62 3 54 7L29 17Q8 27-18 17Q-34 12-43-2Z" fill="url(#salta-shark-skin)" stroke="#285b78" stroke-width="2.4"/>
+  <path d="M-34 5Q-7 15 15 9Q34 2 54 7Q37 23 8 23Q-17 22-34 5Z" fill="url(#salta-shark-belly)"/>
+  <path d="M-29-10Q-8-24 15-20" fill="none" stroke="#c3f2ed" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+  <path d="M-3-7q-4 6 0 12m6-12q-4 6 0 12m6-10q-3 5 0 9" fill="none" stroke="#376b85" stroke-width="1.8" stroke-linecap="round"/>
+  <g class="platform-shark-fin"><path d="M-4 9Q-1 28 22 32Q11 24 12 12Z" fill="url(#salta-shark-fin)" stroke="#285b78" stroke-width="1.7"/><path d="M0 13q4 11 13 15" fill="none" stroke="#8cccd5" stroke-width="1.3" opacity=".6"/></g>
+  <g class="platform-shark-mouth">
+   <path class="platform-shark-mouth-inner" d="M21 4Q39 9 55 3L54 16Q32 22 21 10Z" fill="#354458" stroke="#28526c" stroke-width="1.1"/>
+   <g class="platform-shark-jaw"><path d="M21 8Q37 15 54 8Q57 15 46 20Q32 25 23 16Z" fill="url(#salta-shark-belly)" stroke="#285b78" stroke-width="1.6"/><path d="M27 13 29 7 33 14 35 9 39 14 42 9 45 13 49 8 51 11" fill="#fffef1" stroke="#819caa" stroke-width=".6"/><path d="M30 19q10 3 17-2" fill="none" stroke="#f6fff0" stroke-width="1.5" stroke-linecap="round"/></g>
+   <path class="platform-shark-teeth" d="M25 5 29 12 32 7 36 14 40 7 44 13 47 6 50 11 54 4" fill="#fffff2" stroke="#819caa" stroke-width=".7"/>
+   <path d="M21 4Q37 10 55 3" fill="none" stroke="#28536c" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  <path class="platform-shark-cheek" d="M17 3q2-3 6-2" fill="none" stroke="#2a5b78" stroke-width="1.5" stroke-linecap="round"/>
+  <ellipse cx="53" cy="-3.5" rx="1.8" ry="1.2" fill="#28536c"/>
+  <g class="platform-shark-eye"><ellipse cx="35" cy="-12" rx="7" ry="7.6" fill="#fff9e8" stroke="#39718b" stroke-width="1.4"/><g class="platform-shark-pupil"><ellipse cx="36" cy="-11" rx="4.1" ry="4.8" fill="#61bec5"/><ellipse cx="37" cy="-11" rx="2.6" ry="3.9" fill="#203d58"/><circle cx="38" cy="-13" r="1.4" fill="white"/><circle cx="35" cy="-9" r=".6" fill="#baf0ec"/></g></g>
+  <path class="platform-shark-brow" d="M27-22q8-7 16-1" fill="none" stroke="#24506d" stroke-width="3.3" stroke-linecap="round"/>
+  <path class="platform-shark-glaze" d="M-39 8Q-3 22 23 12Q42 8 54 10Q32 28 3 25Q-23 21-39 8Z" fill="#5cced5" opacity=".14"/>
+ </g></g>
+ ${platformSharkWaterArt('launch')}${platformSharkWaterArt('landing')}
+ <g class="platform-shark-alert" opacity="0"><circle r="9" fill="#ffdf83" stroke="#fff8d7" stroke-width="1.8"/><path d="M0-5v6m0 4v.1" stroke="#7e4b36" stroke-width="2.5" stroke-linecap="round"/></g>
+ </g>`;}
+function platformScene(round,lesson){const p=round.platform,bounds=platformSceneBounds(p);return `<svg class="platform-scene" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}" tabindex="0" role="group" aria-label="Escenario de Salta. Muévete con las flechas o WASD, salta con Espacio y evita al tiburón junto a las orillas."><defs><clipPath id="salta-clip"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" rx="28"/></clipPath></defs><g clip-path="url(#salta-clip)"><g class="platform-islands">${p.centers.map(([x,y],i)=>({x,y,i})).sort((a,b)=>a.y-b.y||a.x-b.x).map(({x,y,i})=>platformTile(lesson,p,x,y,i)).join('')}</g><g class="platform-celebration" aria-hidden="true"><ellipse rx="65" ry="42"/><ellipse rx="78" ry="51"/><path d="m-15-78 10 10 22-25"/></g><ellipse class="platform-shadow" cx="300" cy="260" rx="20" ry="8" fill="#173f52" opacity=".26"/><g class="platform-landing-ring" fill="none" stroke="#fff2c3" stroke-width="2" opacity="0"><ellipse rx="22" ry="9"/></g><g class="platform-player" transform="translate(300 259)" aria-label="Tu exploradora">${platformExplorer()}</g><g class="platform-splash" aria-hidden="true"><ellipse rx="37" ry="13"/><ellipse rx="53" ry="21" stroke-width="2"/><path d="M-30 0-45-24M-12-3-20-35M13-3 23-34M30 0 45-21"/></g><g class="platform-touch-ring" opacity="0" fill="none" stroke="#e1fff1" stroke-width="2" pointer-events="none"><ellipse rx="24" ry="12"/><ellipse rx="34" ry="17"/></g><g class="platform-particles" aria-hidden="true" pointer-events="none">${Array.from({length:40},()=>'<g class="platform-particle" opacity="0"><circle r="1"/><path d="M0-1.5.4-.4 1.5 0 .4.4 0 1.5-.4.4-1.5 0-.4-.4Z"/></g>').join('')}</g>${platformSharkArt()}<g class="platform-sparkles" aria-hidden="true" fill="#fffbd2"><path d="m40 200 3 7 7 3-7 3-3 7-3-7-7-3 7-3m490 88 3 7 7 3-7 3-3 7-3-7-7-3 7-3"/></g></g></svg>`;}
 function platformView(round,lesson){
  if(!round.platformStarted)return `<div class="archery-intro platform-intro"><div class="platform-intro-art" aria-hidden="true"><span>${platformOwl()}</span></div><h2>¡Que no te lleve la marea!</h2><button class="primary" data-play="platform-start">¡A saltar! <span aria-hidden="true">➜</span></button></div>`;
  const p=round.platform,word=lesson.words[round.order[round.attempt%round.order.length]];

@@ -176,17 +176,37 @@ function readArcheryObstacles(state){
   const rect=element.getBoundingClientRect();return {left:rect.left-layer.left,top:rect.top-layer.top,right:rect.right-layer.left,bottom:rect.bottom-layer.top};
  });
 }
+let archeryBalloonTextMeasure;
+function fitArcheryBalloonLabels(state){
+ archeryBalloonTextMeasure ||= document.createElement('canvas').getContext('2d');
+ for(const body of state.bodies){
+  const label=body.element.querySelector('.balloon-body b'),balloon=body.element.querySelector('.balloon-body');
+  if(!label||!balloon)continue;
+  label.style.removeProperty('font-size');
+  const computed=getComputedStyle(label),baseSize=parseFloat(computed.fontSize);
+  const available=balloon.clientWidth-parseFloat(getComputedStyle(balloon).paddingLeft)-parseFloat(getComputedStyle(balloon).paddingRight)-8;
+  if(available<=0||baseSize<=0)continue;
+  if(archeryBalloonTextMeasure)archeryBalloonTextMeasure.font=`${computed.fontWeight} ${baseSize}px ${computed.fontFamily}`;
+  const text=label.textContent.trim(),spacing=parseFloat(computed.letterSpacing)||0;
+  const measured=(archeryBalloonTextMeasure?.measureText(text).width??text.length*baseSize*.62)+Math.max(0,text.length-1)*spacing;
+  const size=Math.max(7,Math.min(baseSize,baseSize*(available-2)/Math.max(1,measured)));
+  label.style.fontSize=`${size.toFixed(2)}px`;
+ }
+}
 function sizeArcheryMotion(state){
  const width=state.layer.clientWidth,layerHeight=state.layer.clientHeight;
  const stringRoom=state.bodies[0].element.querySelector('.balloon-string').offsetHeight+13;
  const height=Math.max(1,layerHeight-stringRoom),columns=width>=486?4:2,rows=Math.ceil(state.bodies.length/columns);
- const balloonWidth=Math.min(134,(width-16-18*(columns-1))/columns);
+ const balloonScale=archeryBalloonScale(state.round.step);
+ const balloonWidth=Math.min(134,(width-16-18*(columns-1))/columns)*balloonScale;
  const baseHeight=parseFloat(getComputedStyle(state.layer).getPropertyValue('--balloon-base-height'))||132;
- const balloonHeight=Math.min(baseHeight,(height-16-18*(rows-1))/rows);
+ const balloonHeight=Math.min(baseHeight,(height-16-18*(rows-1))/rows)*balloonScale;
  const oldWidth=state.width,oldHeight=state.height;
- const resized=width!==oldWidth||height!==oldHeight||balloonWidth!==state.balloonWidth||balloonHeight!==state.balloonHeight;
+ const resized=width!==oldWidth||height!==oldHeight||balloonWidth!==state.balloonWidth||balloonHeight!==state.balloonHeight||balloonScale!==state.balloonScale;
  state.layer.style.setProperty('--balloon-physics-width',`${balloonWidth}px`);
  state.layer.style.setProperty('--balloon-physics-height',`${balloonHeight}px`);
+ state.balloonScale=balloonScale;
+ fitArcheryBalloonLabels(state);
  if(!resized)return false;
  state.width=width;state.height=height;state.balloonWidth=balloonWidth;state.balloonHeight=balloonHeight;
  state.settings=archeryMotionSettings(state.round.attempt,width,height);readArcheryObstacles(state);
