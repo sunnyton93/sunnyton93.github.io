@@ -197,6 +197,8 @@ function unlockCelebration(indices=[],dismissed=false){
 function connectLinks(a,board=null){const source=board||a;return `<svg class="pair-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${source.matched.map(id=>{const y1=(source.left.indexOf(id)+.5)*100/source.left.length,y2=(source.right.indexOf(id)+.5)*100/source.right.length;return `<path d="M40 ${y1} C47 ${y1} 53 ${y2} 60 ${y2}"/>`;}).join('')}</svg>`;}
 function memoryVocabularyForIsland(index){
  const words=islandLessons[index].words.map(word=>({...word}));
+ // Las tres islas de Spelling Bee solo pueden mostrar palabras de su propio CSV.
+ if(oceanIslands[index].zone==='spellingbee')return words;
  const normalize=text=>text.trim().toLowerCase();
  const english=new Set(words.map(word=>normalize(word.en))),spanish=new Set(words.map(word=>normalize(word.es)));
  const previousWords=islandLessons.slice(0,index).flatMap((lesson,previous)=>isIslandLocked(oceanIslands[previous])?[]:lesson.words);
