@@ -1,11 +1,11 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = '13136da39a9a.bf053be1d642';
+const APP_VERSION = '90880676f881.4c688da309d6';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  '/audio/dictionary-en-us.json', '/audio/dictionary-en-us.mp3',
  '/', '/style.css', '/app-shell.css', '/ocean.js', '/archipelago.js', '/sound.js',
- '/island-vocabulary.js', '/games.js', '/archery-motion.js', '/platform-physics.js', '/platforms.js', '/app.js', '/inactivity.js', '/pwa.js',
+ '/island-vocabulary.js', '/spellingbee-islands.js', '/spellingbee-art.js', '/games.js', '/archery-motion.js', '/platform-physics.js', '/platforms.js', '/app.js', '/inactivity.js', '/pwa.js',
  '/blaster.html', '/manifest.webmanifest', '/favicon.ico', '/icons/island.svg',
  '/icons/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png',
  '/icons/icon-maskable-512.png', '/icons/words/catalog.json'

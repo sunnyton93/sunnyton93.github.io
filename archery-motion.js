@@ -1,4 +1,4 @@
-// Four soft, axis-aligned ellipses. Physics runs in fixed steps; DOM writes run
+// Soft, axis-aligned ellipses. Physics runs in fixed steps; DOM writes run
 // once per frame. The arrow's existing aim/hit rules remain in games.js.
 const ARCHERY_PHYSICS_STEP=1/120;
 const ARCHERY_RESTITUTION=.88;
@@ -11,7 +11,7 @@ function archeryMotionSettings(attempt,width,height){
  const baseSpeed=Math.max(34,Math.min(52,Math.min(width,height)*.13));
  // The first six attempts are gentle practice. From attempt seven, the same
  // continuous simulation eases up to the full speed and stronger currents.
- return {level,speed:baseSpeed*(level===0?.3:1+.04*level),turnRate:level===0?.1:.5+.05*level};
+ return {level,speed:baseSpeed*(level===0?.3:1.08+.04*level),turnRate:level===0?.1:.5+.05*level};
 }
 // Per-balloon randomness keeps currents independent of frame rate. Nothing pulls
 // a balloon back to its starting point or gives it a repeating orbital path.
@@ -105,7 +105,7 @@ function stepArcheryPhysics(state,dt){
  for(const body of state.bodies){
   if(body.active===false)continue;
   bounceArcheryWalls(state,body);
-  const speed=Math.hypot(body.vx,body.vy),limit=state.settings.speed*1.35;
+  const speed=Math.hypot(body.vx,body.vy),limit=state.settings.speed*1.5;
   if(speed>limit){body.vx*=limit/speed;body.vy*=limit/speed;}
  }
 }
@@ -237,7 +237,7 @@ function tickArcheryMotion(){
 function syncArcheryMotion(){
  const round=adventure,layer=document.querySelector('.archery-targets');
  if(screen!=='adventure'||round?.mode!=='archery'||!round.archeryStarted||round.done||!layer){cancelArcheryMotion();return;}
- if(!archeryMotion||archeryMotion.round!==round||archeryMotion.layer!==layer){
+ if(!archeryMotion||archeryMotion.round!==round||archeryMotion.layer!==layer||archeryMotion.bodies.length!==layer.querySelectorAll('.word-balloon').length){
   cancelArcheryMotion();
   const state={round,attempt:round.attempt,layer,bodies:[],time:0,accumulator:0,last:null,onImpact:animateArcheryContact};
   state.bodies=[...layer.querySelectorAll('.word-balloon')].map(element=>({element,envelope:element.querySelector('.balloon-envelope'),randomSeed:1+Math.floor(Math.random()*4294967294),pace:.94+Math.random()*.12,active:true}));

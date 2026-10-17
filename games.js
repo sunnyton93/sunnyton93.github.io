@@ -3,7 +3,9 @@ const ISLAND_LINEUP_KEY='ximena-island-games-v2';
 const REQUIRED_ISLAND_GAMES=['find','connect'];
 const MAIN_GAMES_PER_ISLAND=4,COMPLETION_COINS=40,MEMORY_COMPLETION_COINS=200;
 const MEMORY_REVIEW_PAIRS=3;
-const MEMORY_MOVE_LIMIT=60;
+const MEMORY_MOVE_LIMIT=50;
+const SPELLING_BEE_FIND_CARD_COUNT=30;
+const SPELLING_BEE_CONNECT_PAIRS_PER_BOARD=10;
 let islandLineupSaved=true;
 const islandGameLineups=readIslandGameLineups();
 const ISLAND_COIN_BONUS_KEY='ximena-island-coin-bonus-v1';
@@ -160,6 +162,11 @@ function recordCompletion(round){
 luceroOpenRoutes=readLuceroRoutes();
 function shuffle(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
 function reshuffle(items){const result=shuffle(items);return result.every((id,i)=>id===items[i])?[...items.slice(1),items[0]]:result;}
+function spellingBeeFindOptions(wordIds,targetId){
+ const correct=wordIds.includes(targetId)?[targetId]:[];
+ const distractors=shuffle(wordIds.filter(id=>id!==targetId)).slice(0,Math.max(0,SPELLING_BEE_FIND_CARD_COUNT-correct.length));
+ return shuffle([...correct,...distractors]);
+}
 function modeStars(index,mode){
  if(mode==='memory'&&memoryBonusCompleted(index))return '<span class="bonus-badge">Completado · Jugar sin monedas</span>';
  if(mode==='memory')return `<span class="bonus-badge"><span class="bonus-coin">${goldCoinIcon()}</span><span class="bonus-caption"><span class="bonus-amount"><span>¡Gana más de</span> ${MEMORY_COMPLETION_COINS*islandCoinMultiplier(index)} <span>monedas!</span></span></span></span>`;
@@ -187,7 +194,7 @@ function unlockCelebration(indices=[],dismissed=false){
  const illustration=`<svg class="unlock-island-art" viewBox="-175 -195 350 280" aria-hidden="true"><ellipse class="unlock-water-ring" cy="50" rx="151" ry="29" fill="none" stroke="#8bc8c4" stroke-width="2"/><g class="unlock-floating-island"><ellipse cy="36" rx="127" ry="29" fill="#739a8750"/><ellipse cy="26" rx="124" ry="30" fill="#efd8a0"/><ellipse cy="20" rx="111" ry="26" fill="${island.color}"/>${islandScenery(island.type)}</g></svg>`;
  return `<div class="unlock-celebration"><section class="unlock-reward" role="dialog" aria-modal="true" aria-labelledby="unlock-title"><button class="unlock-close" data-play="unlock-close" aria-label="Cerrar recompensa">×</button><div class="unlock-hero" aria-hidden="true"><span class="unlock-glint glint-left">✦</span>${illustration}<span class="unlock-glint glint-right">✧</span><div class="unlock-seal"><svg viewBox="0 0 80 80"><path class="unlock-shackle" d="M25 37V24a15 15 0 0 1 30 0v4"/><rect x="19" y="35" width="42" height="34" rx="9"/><path class="unlock-check" d="m29 51 8 8 15-16"/></svg></div></div><h3 id="unlock-title">¡${indices.length===1?'Isla desbloqueada':'Nuevas islas desbloqueadas'}!</h3><p class="unlock-preview-copy">Has desbloqueado:</p><div class="unlock-islands">${indices.map(i=>`<p><span class="unlock-island-star" aria-hidden="true">★</span><span>${oceanIslands[i].name}</span></p>`).join('')}</div><button class="unlock-continue" data-play="unlock-close">¡A explorar! <span aria-hidden="true">➜</span></button></section></div>`;
 }
-function connectLinks(a){return `<svg class="pair-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${a.matched.map(id=>{const y1=(a.left.indexOf(id)+.5)*100/a.left.length,y2=(a.right.indexOf(id)+.5)*100/a.right.length;return `<path d="M40 ${y1} C47 ${y1} 53 ${y2} 60 ${y2}"/>`;}).join('')}</svg>`;}
+function connectLinks(a,board=null){const source=board||a;return `<svg class="pair-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${source.matched.map(id=>{const y1=(source.left.indexOf(id)+.5)*100/source.left.length,y2=(source.right.indexOf(id)+.5)*100/source.right.length;return `<path d="M40 ${y1} C47 ${y1} 53 ${y2} 60 ${y2}"/>`;}).join('')}</svg>`;}
 function memoryVocabularyForIsland(index){
  const words=islandLessons[index].words.map(word=>({...word}));
  const normalize=text=>text.trim().toLowerCase();
@@ -271,6 +278,8 @@ let archeryShot=null;
 let archeryAim=null;
 let connectDrag=null;
 let suppressConnectClick=false;
+const spellingBeeConnectTimers=new Map();
+function clearSpellingBeeConnectTimers(){for(const timer of spellingBeeConnectTimers.values())clearTimeout(timer);spellingBeeConnectTimers.clear();}
 function clearConnectDrag(){
  const drag=connectDrag;connectDrag=null;
  document.querySelectorAll('.pair-card.is-dragging,.pair-card.is-drop-target').forEach(el=>el.classList.remove('is-dragging','is-drop-target'));
@@ -313,7 +322,8 @@ function archeryBalloonScale(completedRounds){
 function archeryOptions(round){
  const correct=round.order[round.attempt%round.order.length];
  const wordIds=islandLessons[round.index].words.map(word=>word.id);
- const options=shuffle([correct,...shuffle(wordIds.filter(id=>id!==correct)).slice(0,3)]);
+ const distractors=round.step>=8?5:3;
+ const options=shuffle([correct,...shuffle(wordIds.filter(id=>id!==correct)).slice(0,distractors)]);
  if(round.balloons&&options.every(id=>round.balloons.includes(id))){
   const fresh=wordIds.find(id=>!round.balloons.includes(id));
   if(fresh!==undefined)options[options.findIndex(id=>id!==correct)]=fresh;
@@ -399,7 +409,7 @@ document.addEventListener('pointermove',event=>{
    for(const property of computed)copies[index].style.setProperty(property,computed.getPropertyValue(property));
   });
   drag.preview.classList.remove('is-picked','is-dragging');drag.preview.classList.add('pair-drag-preview');
-  drag.preview.removeAttribute('data-play');drag.preview.removeAttribute('data-id');drag.preview.removeAttribute('data-side');drag.preview.removeAttribute('disabled');
+  drag.preview.removeAttribute('data-play');drag.preview.removeAttribute('data-id');drag.preview.removeAttribute('data-side');drag.preview.removeAttribute('data-board');drag.preview.removeAttribute('disabled');
   drag.preview.setAttribute('aria-hidden','true');drag.preview.tabIndex=-1;
   Object.assign(drag.preview.style,{position:'fixed',left:'0',top:'0',right:'auto',bottom:'auto',boxSizing:'border-box',width:`${rect.width}px`,height:`${rect.height}px`,minWidth:'0',minHeight:'0',maxWidth:'none',maxHeight:'none'});document.body.append(drag.preview);
  }
@@ -407,7 +417,7 @@ document.addEventListener('pointermove',event=>{
  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.connect-board .pair-card');
  document.querySelectorAll('.pair-card.is-dragging,.pair-card.is-drop-target').forEach(el=>el.classList.remove('is-dragging','is-drop-target'));
  drag.button.classList.add('is-dragging');
- if(target&&target!==drag.button&&target.dataset.side!==drag.button.dataset.side&&!target.disabled)target.classList.add('is-drop-target');
+ if(target&&target!==drag.button&&target.dataset.board===drag.button.dataset.board&&target.dataset.side!==drag.button.dataset.side&&!target.disabled)target.classList.add('is-drop-target');
 });
 document.addEventListener('pointerup',event=>{
  const drag=connectDrag;if(!drag||event.pointerId!==drag.pointerId)return;
@@ -419,8 +429,10 @@ document.addEventListener('pointerup',event=>{
  suppressConnectClick=true;setTimeout(()=>{suppressConnectClick=false;},0);
  event.preventDefault();event.stopPropagation();
  if(!drag.moved){handleAdventure(drag.button);return;}
- if(!target||target===drag.button||target.disabled||target.dataset.side===drag.button.dataset.side){SoundWorld.play('place');return;}
- adventure.picks=[`${drag.button.dataset.side}-${drag.button.dataset.id}`];
+ if(!target||target===drag.button||target.disabled||target.dataset.board!==drag.button.dataset.board||target.dataset.side===drag.button.dataset.side){SoundWorld.play('place');return;}
+ const board=adventure.connectBoards?.[Number(drag.button.dataset.board)];
+ if(board)board.picks=[`${drag.button.dataset.side}-${drag.button.dataset.id}`];
+ else adventure.picks=[`${drag.button.dataset.side}-${drag.button.dataset.id}`];
  handleAdventure(target);
 });
 document.addEventListener('pointercancel',event=>{if(connectDrag?.pointerId===event.pointerId)clearConnectDrag();});
@@ -478,7 +490,7 @@ document.addEventListener('click',event=>{
 function archeryView(round,lesson){
  if(!round.archeryStarted)return `<div class="archery-intro"><div class="archery-intro-art" aria-hidden="true">🏹 <span>🎈</span></div><h2>¡Apunta y atrapa la palabra!</h2><button class="primary archery-start" data-play="archery-start">Iniciar <span aria-hidden="true">➜</span></button></div>`;
  const word=lesson.words[round.order[round.attempt%round.order.length]];
- return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${wordIcon(word)}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
+ return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${wordIcon(word)}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4','#9cccf3','#f5b987'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
 }
 function paintArcheryShot(impact=false){
  const shot=archeryShot;if(!shot||adventure!==shot.round)return;
@@ -575,9 +587,12 @@ function startAdventure(index,mode=null,developerAccess=false){
  const wordIds=islandLessons[index].words.map(word=>word.id);
  const memoryVocabulary=mode==='memory'?memoryVocabularyForIsland(index):islandLessons[index].words;
  const memoryWords=shuffle(memoryVocabulary.map(word=>word.id));
- const connectWords=shuffle(wordIds).slice(0,Math.min(10,wordIds.length));
+ const beeConnect=mode==='connect'&&oceanIslands[index].zone==='spellingbee';
+ const connectWords=shuffle(wordIds).slice(0,Math.min(beeConnect?SPELLING_BEE_CONNECT_PAIRS_PER_BOARD*2:10,wordIds.length));
+ const connectBoards=beeConnect?[0,1].map(boardIndex=>{const ids=connectWords.slice(boardIndex*SPELLING_BEE_CONNECT_PAIRS_PER_BOARD,(boardIndex+1)*SPELLING_BEE_CONNECT_PAIRS_PER_BOARD);return {left:shuffle(ids),right:shuffle(ids),matched:[],picks:[],wrong:[],pending:false};}):null;
  const gameWords=mode==='connect'?connectWords:wordIds;
- adventure={index,mode,step:0,attempt:0,mistakes:0,turns:0,streak:0,matched:[],picks:[],notice:'',wrong:[],checked:false,pending:false,done:false,memorySeen:[],memoryMisses:[],memoryRecallHits:0,memoryRecallErrors:0,memoryVocabulary,memoryWords,target:mode==='memory'?memoryWords.length:mode==='connect'?connectWords.length:wordIds.length,order:shuffle(wordIds),left:shuffle(gameWords),right:shuffle(gameWords),deck:shuffle(Array.from({length:memoryWords.length*2},(_,id)=>({id,word:memoryWords[id%memoryWords.length],english:id<memoryWords.length})))};
+ const order=shuffle(wordIds),beeFind=mode==='find'&&oceanIslands[index].zone==='spellingbee';
+ adventure={index,mode,step:0,attempt:0,mistakes:0,turns:0,streak:0,matched:[],picks:[],notice:'',wrong:[],checked:false,pending:false,done:false,memorySeen:[],memoryMisses:[],memoryRecallHits:0,memoryRecallErrors:0,memoryVocabulary,memoryWords,connectBoards,target:mode==='memory'?memoryWords.length:mode==='connect'?connectWords.length:wordIds.length,order,left:beeFind?spellingBeeFindOptions(wordIds,order[0]):connectBoards?connectBoards[0].left:shuffle(gameWords),right:connectBoards?connectBoards[0].right:shuffle(gameWords),deck:shuffle(Array.from({length:memoryWords.length*2},(_,id)=>({id,word:memoryWords[id%memoryWords.length],english:id<memoryWords.length})))};
  screen='adventure';
  adventure.developerAccess=developerAccess;
  adventure.coinMultiplier=islandCoinMultiplier(index);
@@ -592,6 +607,7 @@ function startAdventure(index,mode=null,developerAccess=false){
 function finishAdventure(){
  if(adventure?.memoryExhausted)return;
  const a=adventure;if(!a||a.done||(a.mode==='archery'&&!a.archeryStarted)||(a.mode==='platforms'&&!a.platformStarted)||(a.mode==='pirate'&&!a.pirateStarted)||(a.mode==='blaster'&&(!a.blasterStarted||a.step!==a.target)))return;
+ if(a.connectBoards)clearSpellingBeeConnectTimers();
  a.durationMs=Math.round(elapsedGameMs(a));stopGameClock();
  recordCompletion(a);
  const reward=a.mode==='memory'?memoryReward(a):coinReward(a.mode,a.target,Math.floor(a.durationMs/1000));
@@ -604,7 +620,7 @@ function finishAdventure(){
  try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
  const wasComplete=islandComplete(a.index);
  const previousStars=totalStars();
- a.done=true;a.stars=a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=2?2:1;
+ a.done=true;a.stars=a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=(['connect','pirate','archery'].includes(a.mode)?1:2)?2:1;
  const key=`${a.index}-${a.mode}`;islandProgress[key]=Math.max(islandProgress[key]||0,a.stars);
  a.newlyUnlocked=oceanIslands.flatMap((island,index)=>isIslandLocked(island,previousStars)&&!isIslandLocked(island)?[index]:[]);
  const addedStars=totalStars()-previousStars;
@@ -624,6 +640,7 @@ function cancelGameTurn(){
  archeryAnimations.forEach(animation=>animation.cancel());archeryAnimations=[];
  stopGameClock();
  clearTimeout(gameTurnTimer);gameTurnTimer=null;
+ clearSpellingBeeConnectTimers();
  if(adventure?.pending){adventure.pending=false;adventure.checked=false;adventure.wrong=[];adventure.picks=[];}
 }
 function scheduleGameTurn(round){
@@ -637,8 +654,8 @@ function scheduleGameTurn(round){
   }
   const restoreFocus=document.activeElement===document.body||document.activeElement?.dataset.play===round.mode;
   if(round.mode==='find'){
-   if(round.checked)round.step++;
-   round.left=reshuffle(round.left);
+   if(round.checked){round.step++;if(round.step<round.target){round.left=oceanIslands[round.index].zone==='spellingbee'?spellingBeeFindOptions(islandLessons[round.index].words.map(word=>word.id),round.order[round.step]):reshuffle(round.left);}}
+   else round.left=reshuffle(round.left);
    round.notice=round.checked?'¡Siguiente palabra!':'Las tarjetas cambiaron de lugar. Inténtalo otra vez.';
   }else if(round.mode==='connect'){
    round.matched=[];round.picks=[];round.left=reshuffle(round.left);round.right=reshuffle(round.right);
@@ -706,7 +723,7 @@ function animateAdventure(action,button,oldCount){
  };
  const cards=[...document.querySelectorAll('.island-game [data-id]')];
  const same=cards.find(el=>el.dataset.play===action&&el.dataset.id===button.dataset.id&&el.dataset.side===button.dataset.side);
- if(a.wrong.length){
+ if(a.wrong.length||a.connectBoards?.some(board=>board.wrong.length)){
   document.querySelectorAll('.is-wrong').forEach(el=>animate(el,[{transform:'translateX(0)'},{transform:'translateX(-7px)'},{transform:'translateX(7px)'},{transform:'translateX(-4px)'},{transform:'translateX(0)'}]));
  }else if(a.done){
   if(motion){const box=document.querySelector('.island-result').getBoundingClientRect();burst(box.x+box.width/2,box.y+100,28);}
@@ -733,6 +750,10 @@ function lessonStatusView(round,count){
  const detail=round.mode==='platforms'?' rescates':['archery','pirate'].includes(round.mode)?' aciertos':'';
  return `<div class="lesson-status"><span>${gameModes[round.mode]} · ${count} / ${round.target}${detail}</span><span class="game-clock" role="timer" aria-label="Tiempo de partida"><span aria-hidden="true">◷</span> <time>${gameTime(elapsedGameMs(round))}</time></span></div>`;
 }
+function spellingBeeConnectBoardView(a,lesson,board,boardIndex){
+ const first=boardIndex*SPELLING_BEE_CONNECT_PAIRS_PER_BOARD+1,last=first+SPELLING_BEE_CONNECT_PAIRS_PER_BOARD-1;
+ return `<section class="spellingbee-connect-section" aria-label="Tablero ${boardIndex+1}, parejas ${first} a ${last}"><h3>Tablero ${boardIndex+1}<small>Palabras ${first}–${last}</small></h3><div class="spellingbee-connect-column-labels" aria-hidden="true"><span>English</span><span>Español</span></div><div class="connect-board" data-connect-board="${boardIndex}">${connectLinks(a,board)}${['left','right'].map(side=>`<div>${board[side].map(id=>{const word=lesson.words[id],pick=`${side}-${id}`;return `<button class="pair-card ${board.matched.includes(id)?'is-matched':''} ${board.picks.includes(pick)?'is-picked':''} ${board.wrong.includes(pick)?'is-wrong':''}" data-play="connect" data-board="${boardIndex}" data-side="${side}" data-id="${id}" aria-pressed="${board.picks.includes(pick)}" ${board.pending||board.matched.includes(id)?'disabled':''}><span class="pair-orb" aria-hidden="true">${board.matched.includes(id)?'✓':board.picks.includes(pick)?'•':'◇'}</span><span class="pair-word">${word[side==='left'?'en':'es']}</span></button>`;}).join('')}</div>`).join('')}</div></section>`;
+}
 function adventureView(){
  const a=adventure,lesson=islandLessons[a.index],name=oceanIslands[a.index].name;
  const count=['find','archery','platforms','pirate','blaster'].includes(a.mode)?a.step:a.matched.length;
@@ -743,9 +764,9 @@ function adventureView(){
   content=`<div class="island-result"><div class="lesson-icon">${wordIcon(lesson.words[0])}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars" role="img" aria-label="${a.stars} de 3 estrellas">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
  }else if(a.mode==='find'){
   const word=lesson.words[a.order[a.step]];
-  content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${wordIcon(w)}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
+  content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid${oceanIslands[a.index].zone==='spellingbee'?' spellingbee-find-grid':''}">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${wordIcon(w)}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
  }else if(a.mode==='connect'){
-  content=`<div class="connect-board">${connectLinks(a)}${['left','right'].map(side=>`<div>${a[side].map(id=>`<button class="pair-card ${a.matched.includes(id)?'is-matched':''} ${a.picks.includes(`${side}-${id}`)?'is-picked':''} ${a.wrong.includes(`${side}-${id}`)?'is-wrong':''}" data-play="connect" data-side="${side}" data-id="${id}" aria-pressed="${a.picks.includes(`${side}-${id}`)}" ${a.pending||a.matched.includes(id)?'disabled':''}><span class="pair-orb" aria-hidden="true">${a.matched.includes(id)?'✓':a.picks.includes(`${side}-${id}`)?'•':'◇'}</span><span class="pair-word">${lesson.words[id][side==='left'?'en':'es']}</span></button>`).join('')}</div>`).join('')}</div>`;
+  content=a.connectBoards?`<div class="spellingbee-connect-zone">${a.connectBoards.map((board,index)=>spellingBeeConnectBoardView(a,lesson,board,index)).join('')}</div>`:`<div class="connect-board" data-connect-board="0">${connectLinks(a)}${['left','right'].map(side=>`<div>${a[side].map(id=>`<button class="pair-card ${a.matched.includes(id)?'is-matched':''} ${a.picks.includes(`${side}-${id}`)?'is-picked':''} ${a.wrong.includes(`${side}-${id}`)?'is-wrong':''}" data-play="connect" data-board="0" data-side="${side}" data-id="${id}" aria-pressed="${a.picks.includes(`${side}-${id}`)}" ${a.pending||a.matched.includes(id)?'disabled':''}><span class="pair-orb" aria-hidden="true">${a.matched.includes(id)?'✓':a.picks.includes(`${side}-${id}`)?'•':'◇'}</span><span class="pair-word">${lesson.words[id][side==='left'?'en':'es']}</span></button>`).join('')}</div>`).join('')}</div>`;
  }else{
   content=a.mode==='blaster'?blasterView(a):a.mode==='pirate'?pirateView(a,lesson):a.mode==='platforms'?platformView(a,lesson):a.mode==='archery'?archeryView(a,lesson):memoryView(a);
  }
@@ -777,8 +798,15 @@ function handleAdventure(button){
  else if(a.done)return;
  else if(action==='find'&&!a.pending){a.pending=true;if(id===a.order[a.step]){a.checked=true;a.notice='¡Correcto! Sigue así.';SoundWorld.play('correct');}else{a.wrong=[id];a.mistakes++;a.notice='Todavía no. Mira las opciones y prueba de nuevo.';SoundWorld.play('wrong');}}
  else if(action==='connect'&&!a.matched.includes(id)){
- const side=button.dataset.side;if(!a.picks.length||a.picks[0].startsWith(side))SoundWorld.play('pick');a.picks=a.picks.filter(p=>!p.startsWith(side));a.picks.push(`${side}-${id}`);a.notice='Busca su traducción.';
- if(a.picks.length===2){if(a.picks[0].split('-')[1]===a.picks[1].split('-')[1]){a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');}a.picks=[];if(a.matched.length===a.target)finishAdventure();}
+ const side=button.dataset.side,board=a.connectBoards?.[Number(button.dataset.board)];
+ if(board){
+  if(board.pending)return;
+  if(!board.picks.length||board.picks[0].startsWith(side))SoundWorld.play('pick');board.picks=board.picks.filter(p=>!p.startsWith(side));board.picks.push(`${side}-${id}`);a.notice='Busca su traducción en este tablero.';
+  if(board.picks.length===2){const selected=[...board.picks],match=selected[0].split('-')[1]===selected[1].split('-')[1];board.picks=[];if(match){board.matched.push(id);a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{board.wrong=selected;board.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');const timer=setTimeout(()=>{spellingBeeConnectTimers.delete(Number(button.dataset.board));if(adventure!==a||screen!=='adventure'||a.done)return;board.pending=false;board.wrong=[];render();},500);spellingBeeConnectTimers.set(Number(button.dataset.board),timer);}if(a.matched.length===a.target)finishAdventure();}
+ }else{
+  if(!a.picks.length||a.picks[0].startsWith(side))SoundWorld.play('pick');a.picks=a.picks.filter(p=>!p.startsWith(side));a.picks.push(`${side}-${id}`);a.notice='Busca su traducción.';
+  if(a.picks.length===2){if(a.picks[0].split('-')[1]===a.picks[1].split('-')[1]){a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');}a.picks=[];if(a.matched.length===a.target)finishAdventure();}
+ }
  }else if(action==='memory'&&a.picks.length<2&&!a.picks.includes(id)){
  const card=a.deck.find(c=>c.id===id);if(!card||a.matched.includes(card.word)||a.pending)return;
  if(a.picks.length===1){
@@ -802,12 +830,13 @@ function handleAdventure(button){
 function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong>⭐ ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
 
 // Independent answer/exposure deadlines share the same pausable active-time clock.
-const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_ANSWER_MS=3000;
-function pirateAnswerWindow(completed){return Math.max(2000,PIRATE_ANSWER_MS-completed*200);}
-function pirateExposure(completed){
- // At the two-second answer-time floor, the 25% exposure leaves 1.1 seconds
- // after the 400 ms lowering animation for the player to answer from memory.
- return pirateAnswerWindow(completed)*.25;
+const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_HIDE_MS=250,PIRATE_ANSWER_MS=3000;
+function pirateAnswerWindow(completed,target=12){
+ const progress=Math.max(0,Math.min(1,completed/Math.max(1,target-1)));
+ return Math.round(PIRATE_ANSWER_MS-(PIRATE_ANSWER_MS-1000)*progress);
+}
+function pirateExposure(completed,target=12){
+ return pirateAnswerWindow(completed,target)*.25;
 }
 function pirateCanChoose(p){return p&&['choose','hide','recall'].includes(p.phase);}
 function beginPirate(){
@@ -822,8 +851,8 @@ function preparePirateRound(round){
  const words=islandLessons[round.index].words,word=words[round.order[round.attempt%round.order.length]];
  const other=shuffle(words.filter(candidate=>candidate.id!==word.id&&candidate.en!==word.en&&wordIconKey(candidate)!==wordIconKey(word)))[0];
  const correctSide=Math.random()<.5?0:1;
- const now=elapsedGameMs(round),answerWindow=pirateAnswerWindow(round.step);
- round.pirate={phase:'announce',phaseAt:now,answerWindow,answerRemaining:answerWindow,answerDeadline:null,exposureWindow:pirateExposure(round.step),exposureDeadline:null,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false,timedOut:false};
+ const now=elapsedGameMs(round),answerWindow=pirateAnswerWindow(round.step,round.target);
+ round.pirate={phase:'announce',phaseAt:now,answerWindow,answerRemaining:answerWindow,answerDeadline:null,exposureWindow:pirateExposure(round.step,round.target),exposureDeadline:null,word:word.id,options:correctSide?[other.id,word.id]:[word.id,other.id],correctSide,selected:null,outcome:false,timedOut:false};
  round.pending=false;round.notice='Mira la palabra del capitán.';render();SoundWorld.play('dialogue');
 }
 function choosePirate(side){
@@ -857,7 +886,7 @@ function updatePirateRound(){
   if(now>=p.answerDeadline){resolvePirate(round,null);return;}
   if(p.answerRemaining<=1000&&!p.timeWarned){p.timeWarned=true;SoundWorld.play('warning');}
   if(p.phase==='choose'&&now>=p.exposureDeadline){p.phase='hide';p.phaseAt=now;round.notice='Recuerda de qué lado estaba.';render();SoundWorld.play('hide');return;}
-  if(p.phase==='hide'&&age>=PIRATE_LIFT_MS){p.phase='recall';p.phaseAt=now;render();return;}
+  if(p.phase==='hide'&&age>=PIRATE_HIDE_MS){p.phase='recall';p.phaseAt=now;render();return;}
   const meter=document.querySelector('.pirate-time');
   if(meter){meter.querySelector('i').style.transform=`scaleX(${p.answerRemaining/p.answerWindow})`;meter.setAttribute('aria-valuenow',String(Math.ceil(p.answerRemaining/1000)));meter.classList.toggle('is-urgent',p.answerRemaining<1500);}
  }else if(p.phase==='miss'&&age>=800){

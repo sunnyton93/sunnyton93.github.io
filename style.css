@@ -165,6 +165,14 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .connect-board>div{grid-auto-rows:1fr;min-width:0}
 .pair-word{overflow-wrap:anywhere;min-width:0}
 @media(max-width:600px){.island-game .find-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.find-grid .lesson-card{min-height:110px}.find-grid .lesson-icon{font-size:34px}}
+/* Thirty Spelling Bee choices form five rows on wide screens. */
+.island-game .spellingbee-find-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:12px 0}
+.spellingbee-find-grid .lesson-card{min-width:0;min-height:88px;padding:7px 5px;gap:4px;border-radius:16px}
+.spellingbee-find-grid .lesson-icon{font-size:clamp(29px,3.3vw,42px);line-height:1}
+.spellingbee-find-grid .lesson-card b{font-size:clamp(12px,1.2vw,15px);line-height:1.2;overflow-wrap:anywhere}
+@media(max-width:900px){.island-game .spellingbee-find-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}}
+@media(max-width:600px){.island-game .spellingbee-find-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.spellingbee-find-grid .lesson-card{min-height:82px;padding:6px 4px;gap:3px}.spellingbee-find-grid .lesson-icon{font-size:31px}.spellingbee-find-grid .lesson-card b{font-size:12px}}
+@media(max-width:360px){.island-game .spellingbee-find-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.spellingbee-find-grid .lesson-card b{font-size:13px}}
 .lesson-modes .lesson-mode{width:100%;height:100%}
 .lesson-modes .lesson-mode:disabled{opacity:.55;cursor:not-allowed}
 .lesson-modes .lesson-mode:not(:disabled):hover{border-color:#29836b}
@@ -615,11 +623,11 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .flag-left{--flag-down-x:32px;--flag-down-angle:-18deg}.flag-right{--flag-down-x:-32px;--flag-down-angle:18deg}
 .pirate-intro .captain-arm,.pirate-announce .captain-arm,.pirate-recall .captain-arm{animation:none;visibility:hidden;opacity:0;transform:rotate(var(--arm-down))}
 .pirate-intro .pirate-flag,.pirate-announce .pirate-flag,.pirate-recall .pirate-flag{animation:none;visibility:hidden;opacity:0;transform:translate(var(--flag-down-x),100px) rotate(var(--flag-down-angle))}
-/* These durations match PIRATE_LIFT_MS; hidden states also work without animation. */
+/* Raise/hide durations match PIRATE_LIFT_MS/PIRATE_HIDE_MS; hidden states also work without animation. */
 .pirate-reveal .captain-arm{animation:captain-raise .4s cubic-bezier(.22,.7,.3,1) both}
 .pirate-reveal .pirate-flag{animation:flag-raise .4s cubic-bezier(.22,.7,.3,1) both}
-.pirate-hide .captain-arm{opacity:0;visibility:hidden;transform:rotate(var(--arm-down));animation:captain-lower .4s ease-in both}
-.pirate-hide .pirate-flag{opacity:0;visibility:hidden;transform:translate(var(--flag-down-x),100px) rotate(var(--flag-down-angle));animation:flag-lower .4s ease-in both}
+.pirate-hide .captain-arm{opacity:0;visibility:hidden;transform:rotate(var(--arm-down));animation:captain-lower .25s ease-in both}
+.pirate-hide .pirate-flag{opacity:0;visibility:hidden;transform:translate(var(--flag-down-x),100px) rotate(var(--flag-down-angle));animation:flag-lower .25s ease-in both}
 .flag-cloth{position:relative;height:78%;display:grid;place-items:center;border:6px solid var(--flag-color);border-radius:24px 9px 22px 22px;background:radial-gradient(ellipse at 30% 15%,#fffef5,#fff5d9);box-shadow:inset 0 0 0 2px #ffffff,0 7px 0 #3455631a}
 .flag-right .flag-cloth{border-radius:9px 24px 22px 22px}
 .flag-cloth::after{content:'';position:absolute;inset:6px;border:1px dashed #c4b88e70;border-radius:13px;pointer-events:none}
@@ -1047,3 +1055,125 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .platform-game.is-calm .word-platform.is-sunk{transform:none}
 @media(prefers-reduced-motion:reduce){.platform-game .word-platform.is-sunk{transform:none}}
 .vocabulary-icon{display:inline-block;width:1.15em;height:1.15em;max-width:none;object-fit:contain;vertical-align:middle;pointer-events:none;user-select:none;-webkit-user-drag:none}
+
+/* Spelling Bee: a storybook garden connected by trails of honey-colored light. */
+.map-node.bee-free-node{width:58px;height:58px;border-color:#fffbe4;background:radial-gradient(circle at 32% 24%,#fffce3,#ffda74 58%,#eeb24c);color:#72502d;font-size:22px;box-shadow:0 5px 0 #b58645,0 0 0 8px #fff0af3d,0 0 20px #ffeab966,inset 0 2px 0 #fff9e1;transition:scale .18s ease,box-shadow .18s ease}
+.map-node.bee-free-node::before{content:'';position:absolute;inset:-11px;border:1.5px solid #fff4c6;border-radius:50%;pointer-events:none;opacity:.5;animation:sb-node-halo 3.8s ease-in-out infinite}
+.map-node.bee-free-node::after{content:'✦';position:absolute;right:-8px;top:-8px;color:#fff4c2;font-size:15px;text-shadow:0 1px 3px #a97e3a;pointer-events:none}
+.map-node.bee-free-node:hover,.map-node.bee-free-node:focus-visible{scale:1.08;box-shadow:0 6px 0 #ae7b38,0 0 0 9px #fff3bc66,0 0 28px #ffebb7,inset 0 2px 0 #fff9e1;outline:3px solid #fff4bc;outline-offset:5px}
+.map-node.bee-free-node:active{scale:.96}
+.map-node.bee-free-node small{top:61px;background:#fff9e4;color:#79542f;padding:5px 10px;font-size:9px;font-weight:900;letter-spacing:1.2px;border:1px solid #e9cb89;box-shadow:0 3px 0 #b98a4a38}
+.mini-map i.spellingbee-marker{width:12px;height:9px;background:#ffdc5e;box-shadow:0 0 0 2px #fff6c9aa,0 0 9px #fff4a8}
+.spellingbee-paths{pointer-events:none}
+.spellingbee-paths .spellingbee-zone-title{font:900 25px system-ui,sans-serif;letter-spacing:1.7px;fill:#fff4bc;stroke:#497c71;stroke-width:2px;paint-order:stroke}
+.spellingbee-paths .spellingbee-zone-subtitle{font:800 10px system-ui,sans-serif;letter-spacing:2.5px;fill:#edffe5}
+.spellingbee-island .island-name{font:850 16px system-ui,sans-serif;fill:#586875;stroke:none;letter-spacing:.2px}
+.sb-landmark{stroke-linejoin:round}
+.sb-shore-ring{transform-box:fill-box;transform-origin:center;animation:sb-shore-spread 6s ease-in-out infinite}
+.sb-shore-ring-second{animation-delay:-3s}
+.sb-route-light{animation:sb-road-flow 12s linear infinite;animation-delay:var(--sb-delay,0s)}
+.sb-road-gem{animation:sb-gem-glow 4s ease-in-out infinite;animation-delay:var(--sb-delay,0s)}
+.sb-twinkle{transform-box:fill-box;transform-origin:center;animation:sb-star-shine 4.4s ease-in-out infinite;animation-delay:var(--sb-delay,0s)}
+.sb-flower{transform-box:fill-box;transform-origin:50% 100%;animation:sb-flower-sway 5s ease-in-out infinite;animation-delay:var(--sb-delay,0s)}
+.sb-treetop{transform-box:fill-box;transform-origin:50% 100%;animation:sb-tree-breeze 7s ease-in-out infinite}
+.sb-pinwheel{transform-box:fill-box;transform-origin:center;animation:sb-turn 12s linear infinite}
+.sb-smoke{transform-box:fill-box;transform-origin:center;opacity:.3;animation:sb-smoke-rise 4.8s ease-out infinite}
+.sb-smoke-second{animation-delay:-2.4s}
+.sb-bunting{animation:sb-bunting-breeze 4.2s ease-in-out infinite}
+.sb-bouncing-ball{animation:sb-ball-hop 5.2s ease-in-out infinite}
+.sb-magic-book{animation:sb-book-hover 5.4s ease-in-out infinite}
+.sb-book-page{transform-box:fill-box;transform-origin:100% 100%;animation:sb-page-turn 8s ease-in-out infinite}
+.sb-quill{animation:sb-quill-write 6s ease-in-out infinite}
+.sb-floating-letter,.sb-letter-charm{animation:sb-letter-hover 5.4s ease-in-out infinite;animation-delay:var(--sb-delay,0s)}
+.sb-magic-trail{animation:sb-magic-flow 10s linear infinite}
+.sb-flying-clock{animation:sb-clock-hover 6s ease-in-out infinite}
+.sb-clock-wing{transform-box:fill-box;animation:sb-clock-wing-left 3s ease-in-out infinite;transform-origin:100% 50%}
+.sb-clock-wing-right{transform-origin:0 50%;animation-name:sb-clock-wing-right}
+.sb-clock-minute,.sb-clock-hour{transform-origin:0 0;animation:sb-turn 42s linear infinite}
+.sb-clock-hour{animation-duration:504s}
+.sb-clock-cloud{animation:sb-cloud-drift 8s ease-in-out infinite}
+.sb-clock-cloud-second{animation-delay:-4s;animation-duration:11s}
+.world.large-world>.spellingbee-bee{animation:none;pointer-events:none;filter:none}
+.sb-bee-flight{animation:sb-bee-hover 5.8s ease-in-out infinite;filter:drop-shadow(0 3px 2px #8b814126)}
+.sb-bee-wing{transform-origin:0 0;animation:sb-bee-wing-left .18s ease-in-out infinite alternate}
+.sb-bee-wing-right{animation-name:sb-bee-wing-right;animation-delay:-.045s}
+.sb-bee-eyes{transform-box:fill-box;transform-origin:center;animation:sb-bee-blink 6.2s linear infinite}
+.sb-bee-wave{transform-origin:0 0;animation:sb-bee-wave 7s ease-in-out infinite}
+.sb-bee-aura{transform-box:fill-box;transform-origin:center;animation:sb-aura-breathe 5.8s ease-in-out infinite}
+.sb-bee-shadow{transform-box:fill-box;transform-origin:center;animation:sb-bee-shadow 5.8s ease-in-out infinite}
+.sb-bee-water{transform-box:fill-box;transform-origin:center;animation:sb-water-ring 5.8s ease-out infinite}
+.sb-bee-orbit{transform-origin:0 0;animation:sb-turn 80s linear infinite}
+.sb-pollen{opacity:.65;animation:sb-pollen-drift 7s ease-in-out infinite;animation-delay:var(--sb-delay,0s)}
+@keyframes sb-node-halo{0%,100%{scale:.96;opacity:.35}50%{scale:1.1;opacity:.8}}
+@keyframes sb-shore-spread{0%,100%{scale:.97;opacity:.15}50%{scale:1.11 1.16;opacity:.55}}
+@keyframes sb-road-flow{to{stroke-dashoffset:-248}}
+@keyframes sb-gem-glow{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes sb-star-shine{0%,100%{transform:scale(.65) rotate(-10deg);opacity:.45}50%{transform:scale(1.1) rotate(12deg);opacity:1}}
+@keyframes sb-flower-sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(5deg)}}
+@keyframes sb-tree-breeze{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(2deg)}}
+@keyframes sb-turn{to{transform:rotate(360deg)}}
+@keyframes sb-smoke-rise{0%{transform:translate(0,0) scale(.65);opacity:0}18%{opacity:.38}100%{transform:translate(16px,-37px) scale(1.45);opacity:0}}
+@keyframes sb-bunting-breeze{0%,100%{transform:skewX(-2deg)}50%{transform:skewX(3deg) translateY(2px)}}
+@keyframes sb-ball-hop{0%,32%,72%,100%{transform:translateY(0)}44%,60%{transform:translateY(-8px)}52%{transform:translateY(-2px)}}
+@keyframes sb-book-hover{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
+@keyframes sb-page-turn{0%,22%,100%{transform:scaleX(1) skewY(0deg)}46%,58%{transform:scaleX(.18) skewY(-12deg)}80%{transform:scaleX(.9) skewY(2deg)}}
+@keyframes sb-quill-write{0%,100%{transform:translate(0,0) rotate(-4deg)}35%{transform:translate(-4px,5px) rotate(3deg)}65%{transform:translate(3px,-6px) rotate(-1deg)}}
+@keyframes sb-letter-hover{0%,100%{transform:translateY(2px) rotate(-4deg)}50%{transform:translateY(-9px) rotate(5deg)}}
+@keyframes sb-magic-flow{to{stroke-dashoffset:-110}}
+@keyframes sb-clock-hover{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-6px) rotate(1deg)}}
+@keyframes sb-clock-wing-left{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(7deg)}}
+@keyframes sb-clock-wing-right{0%,100%{transform:rotate(3deg)}50%{transform:rotate(-7deg)}}
+@keyframes sb-cloud-drift{0%,100%{transform:translateX(-3px)}50%{transform:translateX(9px)}}
+@keyframes sb-bee-hover{0%,100%{transform:translate(0,2px) rotate(-2deg)}50%{transform:translate(3px,-11px) rotate(3deg)}}
+@keyframes sb-bee-wing-left{from{transform:rotate(-7deg) scaleY(1)}to{transform:rotate(13deg) scaleY(.55)}}
+@keyframes sb-bee-wing-right{from{transform:rotate(7deg) scaleY(1)}to{transform:rotate(-13deg) scaleY(.55)}}
+@keyframes sb-bee-blink{0%,91%,96%,100%{transform:scaleY(1)}93%,94%{transform:scaleY(.08)}}
+@keyframes sb-bee-wave{0%,28%,55%,100%{transform:rotate(0)}34%,46%{transform:rotate(21deg)}40%,51%{transform:rotate(-12deg)}}
+@keyframes sb-aura-breathe{0%,100%{transform:scale(.94);opacity:.7}50%{transform:scale(1.07);opacity:1}}
+@keyframes sb-bee-shadow{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(.8);opacity:.3}}
+@keyframes sb-water-ring{0%{transform:scale(.85);opacity:.1}30%{opacity:.55}100%{transform:scale(1.25);opacity:0}}
+@keyframes sb-pollen-drift{0%,100%{transform:translate(-3px,7px);opacity:.2}50%{transform:translate(5px,-12px);opacity:.85}}
+/* The same motion controls apply to the mascot, routes, terrain, and button halos. */
+.map-sleeping.bee-free-node::before,.map-overview .bee-free-node::before{animation-play-state:paused!important}
+[data-hidden=true] :is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island,.bee-free-node),[data-hidden=true] :is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island) *,[data-hidden=true] .bee-free-node::before{animation-play-state:paused!important}
+[data-calm=true] :is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island,.bee-free-node,.sb-landmark),[data-calm=true] :is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island,.sb-landmark) *,[data-calm=true] .bee-free-node::before{animation:none!important;transition:none!important}
+[data-calm=true] .sb-smoke{display:none}
+@media(prefers-reduced-motion:reduce){:is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island,.bee-free-node,.sb-landmark),:is(.spellingbee-bee,.spellingbee-paths,.spellingbee-island,.sb-landmark) *,.bee-free-node::before{animation:none!important;transition:none!important}.sb-smoke{display:none}}
+
+/* Leave the five Find rows room beneath the island controls. */
+.screen-overlay:has(.spellingbee-find-grid)>.island-game{padding-block:8px 4px}
+.screen-overlay:has(.spellingbee-find-grid) .lesson-modes{margin:8px 0}
+.screen-overlay:has(.spellingbee-find-grid) .lesson-modes button{min-height:56px;padding-block:6px}
+.screen-overlay:has(.spellingbee-find-grid) .lesson-track{margin:16px 0}
+.screen-overlay:has(.spellingbee-find-grid) .word{font-size:clamp(29px,3vw,40px);margin:5px 0 12px}
+@media(min-width:901px){.screen-overlay:has(.spellingbee-find-grid) .island-room-strip{min-height:78px;margin-bottom:5px;padding-bottom:4px}.screen-overlay:has(.spellingbee-find-grid) .room-landmark{width:108px;height:76px}.screen-overlay:has(.spellingbee-find-grid) .room-toy{min-height:64px;width:72px;padding-block:2px 5px}.screen-overlay:has(.spellingbee-find-grid) .room-toy svg{width:46px;height:42px}}
+@media(min-width:901px) and (max-height:950px){
+ .screen-overlay:has(.spellingbee-find-grid) .island-room-strip{min-height:60px;margin-bottom:3px;padding-bottom:2px}
+ .screen-overlay:has(.spellingbee-find-grid) .room-landmark{width:88px;height:60px}
+ .screen-overlay:has(.spellingbee-find-grid) .room-toy{min-height:52px;width:60px;padding-block:2px}
+ .screen-overlay:has(.spellingbee-find-grid) .room-toy svg{width:38px;height:36px}
+ .screen-overlay:has(.spellingbee-find-grid)>.island-game{padding-top:4px}
+ .screen-overlay:has(.spellingbee-find-grid) .lesson-modes{margin:5px 0}
+ .screen-overlay:has(.spellingbee-find-grid) .lesson-modes button{min-height:48px;padding-block:4px}
+ .screen-overlay:has(.spellingbee-find-grid) .lesson-track{height:20px;margin:12px 0}
+ .screen-overlay:has(.spellingbee-find-grid) .word{font-size:32px;margin:3px 0 8px}
+ .island-game .spellingbee-find-grid{gap:8px;margin:7px 0}
+ .spellingbee-find-grid .lesson-card{min-height:98px;padding:9px 6px;gap:5px}
+ .spellingbee-find-grid .lesson-icon{font-size:40px}
+ .spellingbee-find-grid .lesson-card b{font-size:15px;line-height:1.2}
+}
+
+/* Spelling Bee Conecta uses two independent ten-pair boards side by side. */
+.spellingbee-connect-zone{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:clamp(12px,2vw,24px);margin:12px 0}
+.spellingbee-connect-section{min-width:0;padding:10px;border:1px solid #d5e6d5;border-radius:20px;background:linear-gradient(145deg,#fffdf4d9,#f4f8e9e6);box-shadow:0 5px 0 #3e79651b}
+.spellingbee-connect-section>h3{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px;color:#386e5d;font-size:15px}
+.spellingbee-connect-section>h3 small{color:#71877a;font-size:11px;font-weight:600;white-space:nowrap}
+.spellingbee-connect-column-labels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:clamp(4px,1vw,12px);margin:0 0 4px;color:#738a7a;font-size:10px;font-weight:800;text-align:center}
+.spellingbee-connect-section .connect-board{width:100%;max-width:none;margin:0;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:clamp(4px,1vw,12px);row-gap:0}
+.spellingbee-connect-section .connect-board>div{gap:5px}
+.spellingbee-connect-section .connect-board .pair-card{min-width:0;min-height:46px;padding:6px 7px;gap:6px;border-radius:13px;font-size:14px;line-height:1.15}
+.spellingbee-connect-section .connect-board .pair-orb{flex-basis:20px;width:20px;height:20px;font-size:14px}
+.spellingbee-connect-section .connect-board .pair-word{font-size:14px;line-height:1.15;overflow-wrap:anywhere}
+.spellingbee-connect-section .connect-board .pair-links{z-index:0}
+@media(max-width:700px){.spellingbee-connect-zone{grid-template-columns:minmax(0,1fr);gap:10px}.spellingbee-connect-section{padding:8px}.spellingbee-connect-section>h3{font-size:14px}.spellingbee-connect-section .connect-board>div{gap:4px}.spellingbee-connect-section .connect-board .pair-card{min-height:38px;padding:4px 5px;gap:4px}.spellingbee-connect-section .connect-board .pair-word{font-size:12px}.spellingbee-connect-section .connect-board .pair-orb{flex-basis:17px;width:17px;height:17px;font-size:12px}}
+@media(max-height:700px) and (min-width:701px){.spellingbee-connect-section{padding:7px}.spellingbee-connect-section>h3{margin-bottom:5px;font-size:13px}.spellingbee-connect-section .connect-board>div{gap:3px}.spellingbee-connect-section .connect-board .pair-card{min-height:34px;padding:3px 4px;gap:3px;font-size:12px}.spellingbee-connect-section .connect-board .pair-word{font-size:12px}.spellingbee-connect-section .connect-board .pair-orb{flex-basis:16px;width:16px;height:16px;font-size:11px}}
