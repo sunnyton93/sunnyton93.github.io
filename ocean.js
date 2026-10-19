@@ -166,9 +166,11 @@ function mountMap() {
 // Stable IDs are part of the player's save. Artwork and positions never encode outcomes.
 const MARINE_SAVE_KEY='ximena-marine-encounters-v1';
 const MARINE_COOLDOWN_MS=3*24*60*60*1000;
-const MARINE_REWARD_VERSION=3;
-const MARINE_REWARD_COUNTS=[{effect:500,count:1},{effect:10,count:11},{effect:-20,count:14},{effect:-250,count:2}];
+const MARINE_REWARD_VERSION=4;
+const MARINE_V3_REWARD_COUNTS=[{effect:500,count:1},{effect:10,count:11},{effect:-20,count:14},{effect:-250,count:2}];
+const MARINE_REWARD_COUNTS=[...MARINE_V3_REWARD_COUNTS,{effect:-400,count:1},{effect:-100,count:1},{effect:50,count:1}];
 const MARINE_OCEAN_ELEMENTS=['sailboat','seaweed','coral','reef','seashell'];
+const MARINE_V4_ANIMALS=['swordfish','seal','orca'];
 const marineSpecies=[
  ['hammerhead','Tiburón martillo','Hammerhead shark','shark','#83b5b9',1600,250,160],
  ['whale-shark','Tiburón ballena','Whale shark','shark','#739eae',2650,800,176],
@@ -195,6 +197,9 @@ const marineSpecies=[
  ['coral','Coral','Coral','anchored','#dda69b',3250,4270,126],
  ['reef','Arrecife','Reef','anchored','#b8adca',1150,2260,152],
  ['seashell','Concha marina','Seashell','anchored','#e3baa5',6280,1155,94],
+ ['swordfish','Pez espada','Swordfish','swimmer','#7daeba',5540,1440,160],
+ ['seal','Foca','Seal','swimmer','#b5bec4',5300,160,140],
+ ['orca','Orca','Orca','swimmer','#456477',5420,2220,170],
  ['fish','Pez','Fish','legacy',null,350,820,100],
  ['turtle','Tortuga marina','Sea turtle','legacy',null,5320,3700,100],
  ['octopus','Pulpo','Octopus','legacy',null,6150,300,100]
@@ -204,7 +209,13 @@ function marineArt(species){
  if(species.motion==='legacy')return animal(species.id);
  const {id,color:c}=species,eye=(x,y)=>`<circle cx="${x}" cy="${y}" r="3" fill="#355e68"/><circle cx="${x+.8}" cy="${y-.8}" r=".9" fill="#fffbe9"/>`;
  let art='';
- if(species.motion==='shark'||id==='dolphin'){
+ if(id==='swordfish'){
+  art=`<g class="visitor-tail"><path d="M-42 0Q-63-8-72-28l6 27-9 25Q-53 17-42 0Z" fill="${c}"/></g><path d="M-48 1Q-24-21 13-17Q34-15 43-6L80-10 43 1Q33 22-4 19Q-31 16-48 1Z" fill="${c}"/><path d="M-33 5Q3 13 40 1Q25 22-8 16Z" fill="#e7efdf"/><path d="M-21-14Q-12-43-4-41l9 26" fill="#5b8d9f"/><path class="visitor-fin" d="M-2 10Q7 31 24 34L12 8Z" fill="#6798ab"/><path d="M-32-7q21-11 43-6" fill="none" stroke="#c9e4dd" stroke-width="2.5" stroke-linecap="round"/>${eye(29,-7)}<path d="M26 5q6 3 12-1" fill="none" stroke="#426f81" stroke-width="1.5" stroke-linecap="round"/>`;
+ }else if(id==='seal'){
+  art=`<g class="visitor-tail" fill="#8b9fab"><path d="M-40 13Q-73-12-71 6q1 17 27 18Q-66 40-51 40q16-4 24-19Z"/></g><path d="M-52 14Q-47-8-16-12Q0-37 28-29Q52-22 56-2Q57 21 28 26Q-15 35-52 14Z" fill="${c}"/><path d="M-35 17Q2 8 29 8Q46 16 32 25Q-6 33-35 17Z" fill="#e6e9dd"/><path class="visitor-fin" d="M-6 9Q-17 30-5 37Q12 32 14 15Z" fill="#91a6b1"/><path d="M-32-2q12-8 26-6" fill="none" stroke="#e3e9e1" stroke-width="3" stroke-linecap="round"/><g fill="#9caeb5" opacity=".7"><ellipse cx="-27" cy="10" rx="4" ry="3"/><ellipse cx="-15" cy="0" rx="3" ry="2"/><ellipse cx="-39" cy="11" rx="3" ry="2"/></g><ellipse cx="42" cy="-1" rx="15" ry="10" fill="#edf0e5"/>${eye(29,-14)}<path d="M46-5q9-5 9 1l-5 4Z" fill="#476673"/><path d="M50 0v4m-7 0q7 6 12 0M38-1 25-4m14 7-15 3m26-6 13-4m-10 8 12 2" fill="none" stroke="#627f88" stroke-width="1.4" stroke-linecap="round"/>`;
+ }else if(id==='orca'){
+  art=`<g class="visitor-tail"><path d="M-43 1Q-65-7-76-25l6 24-10 22Q-55 19-43 1Z" fill="${c}"/></g><path d="M-49 2Q-31-24 10-25Q48-28 65-5Q76 16 45 24Q-10 37-49 2Z" fill="${c}"/><path d="M-32 9Q0 7 18 16Q33 28 63 6Q65 24 27 27Q-8 28-32 9Z" fill="#f4f3de"/><path d="M-17-21Q-10-47 0-48L6-22" fill="${c}"/><path class="visitor-fin" d="M-2 12Q-4 40 14 40Q22 29 16 15Z" fill="#38596d"/><ellipse cx="37" cy="-12" rx="12" ry="6" transform="rotate(-15 37 -12)" fill="#faf6e2"/><path d="M-32-8q15-12 30-9" fill="none" stroke="#7998a7" stroke-width="2.5" stroke-linecap="round"/>${eye(54,-5)}<path d="M49 10q8 3 14-2" fill="none" stroke="#d3e4dc" stroke-width="1.5" stroke-linecap="round"/>`;
+ }else if(species.motion==='shark'||id==='dolphin'){
   art=`<g class="visitor-tail"><path d="M-44 0Q-63-7-73-29l4 27-9 25Q-54 16-44 0" fill="${c}"/></g><path d="M-48 1Q-21-29 26-18Q49-14 64-2Q73 5 55 13Q0 31-48 1Z" fill="${c}"/><path d="M-32 7Q13 17 60 4Q45 28 2 21Z" fill="#e0ecda"/><path d="M-14-18Q-7-42 3-43l6 25M-1 15l19 21-3-23" fill="${c}"/><path d="M-28-10Q-3-24 23-17" fill="none" stroke="#d7ebe0" stroke-width="2" stroke-linecap="round"/>${id==='hammerhead'?`<path d="M44-9Q34-30 44-32h12q7 1 4 9l-1 29q5 17-5 18H42q-8-3 4-17Z" fill="${c}"/>${eye(51,-25)}`:eye(48,-7)}<path d="m48 9 9-2" stroke="#557e84" stroke-width="1.6" stroke-linecap="round"/>`;
   if(id==='tiger-shark')art+='<path d="m-28-10 6 14m8-20 6 16m9-19 4 17m10-15 2 12" fill="none" stroke="#678c86" stroke-width="4" opacity=".65"/>';
   if(id==='whale-shark')art+=Array.from({length:15},(_,i)=>`<circle cx="${-26+i%5*13}" cy="${-9+Math.floor(i/5)*8}" r="1.9" fill="#daede2"/>`).join('');
@@ -256,7 +267,7 @@ function marineVisitors(){
   const radius=species.size/2+45;
   let {x,y}=species;
   for(let attempt=0;attempt<60;attempt++){
-   if(x>radius&&x<OCEAN_SIZE.width-radius&&y>radius&&y<OCEAN_SIZE.height-radius&&homes.every(home=>Math.hypot(x-home.x,y-home.y)>=600+radius+home.radius)&&oceanIslands.every(island=>Math.abs(x-island.x)>island.scale*160+species.size/2+55||Math.abs(y-island.y)>island.scale*170+species.size/2+35))break;
+   if(x>radius&&x<OCEAN_SIZE.width-radius&&y>radius&&y<OCEAN_SIZE.height-radius&&homes.every(home=>Math.hypot(x-home.x,y-home.y)>=500+radius+home.radius)&&oceanIslands.every(island=>Math.abs(x-island.x)>island.scale*160+species.size/2+55||Math.abs(y-island.y)>island.scale*170+species.size/2+35))break;
    x=species.x+(attempt%2?1:-1)*(90+Math.floor(attempt/2)*65);y=species.y+80+attempt*12;
   }
   homes.push({x,y,radius});
@@ -312,11 +323,24 @@ function prepareMarineRound(state,now){
  // Extend the existing 23-member round without changing its deadline or outcomes.
  // Only the five new elements receive the extra two gifts and three small losses.
  if(state.rewardVersion===2){
-  const previousSpecies=marineSpecies.filter(s=>!MARINE_OCEAN_ELEMENTS.includes(s.id));
+  const previousSpecies=marineSpecies.filter(s=>!MARINE_OCEAN_ELEMENTS.includes(s.id)&&!MARINE_V4_ANIMALS.includes(s.id));
   const oldCounts=[{effect:500,count:1},{effect:10,count:9},{effect:-20,count:11},{effect:-250,count:2}];
   if(!Number.isSafeInteger(state.roundStartedAt)||state.roundStartedAt<0||!previousSpecies.every(s=>state.animals[s.id])||MARINE_OCEAN_ELEMENTS.some(id=>state.animals[id])||!oldCounts.every(({effect,count})=>previousSpecies.filter(s=>state.animals[s.id].effect===effect).length===count))throw new Error('Invalid previous marine round');
   const extraEffects=shuffleMarine([10,10,-20,-20,-20]);
   MARINE_OCEAN_ELEMENTS.forEach((id,index)=>{state.animals[id]={effect:extraEffects[index],met:false};});
+  state.rewardVersion=3;changed=true;
+ }
+ if(state.rewardVersion===3){
+  const previousSpecies=marineSpecies.filter(s=>!MARINE_V4_ANIMALS.includes(s.id));
+  if(!Number.isSafeInteger(state.roundStartedAt)||state.roundStartedAt<0||!previousSpecies.every(s=>state.animals[s.id])||MARINE_V4_ANIMALS.some(id=>state.animals[id])||!MARINE_V3_REWARD_COUNTS.every(({effect,count})=>previousSpecies.filter(s=>state.animals[s.id].effect===effect).length===count))throw new Error('Invalid previous marine round');
+  // Shuffle across all 31 characters, retaining already-consumed greetings and the deadline.
+  const expired=now-state.roundStartedAt>=MARINE_COOLDOWN_MS,effects=drawMarineEffects(state.animals);
+  for(const species of marineSpecies){
+   const previous=state.animals[species.id];
+   state.animals[species.id]={...previous,effect:effects[species.id],met:Boolean(previous?.met&&!expired)};
+   if(previous?.met)state.animals[species.id].lastEffect=previous.lastEffect??previous.effect;
+  }
+  if(expired)state.roundStartedAt+=Math.floor((now-state.roundStartedAt)/MARINE_COOLDOWN_MS)*MARINE_COOLDOWN_MS;
   state.rewardVersion=MARINE_REWARD_VERSION;changed=true;
  }
  const upgrading=state.rewardVersion!==MARINE_REWARD_VERSION;
@@ -370,7 +394,7 @@ function claimMarineEncounter(id){
   if(!marineSpecies.some(s=>s.id===id))throw new Error('Unknown animal');
   const state=readMarineSave(),now=Date.now();prepareMarineRound(state,now);
   const entry=state.animals[id];
-  // All animals refresh together, keeping exactly one jackpot and two large losses.
+  // All animals refresh together, preserving the exact counts of every gift/loss.
   // Greetings never move the deadline; only one effect is applied per animal/round.
   if(entry.met){coinBalance=readCoinBalance();syncCoinHud();return {repeat:true,effect:entry.lastEffect??entry.effect,delta:0};}
   const before=Number(localStorage.getItem(COIN_STORAGE_KEY)||0);

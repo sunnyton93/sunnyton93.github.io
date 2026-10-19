@@ -22,7 +22,7 @@ function getPlatformView(){
   clock:one('.platform-countdown'),timeFill:one('.platform-time-fill'),phase:one('.platform-phase'),owl:one('.platform-owl'),jump:one('.platform-jump'),controls:[...game.querySelectorAll('[data-direction]')],joystick:one('[data-platform-joystick]'),thumb:one('.platform-joystick-thumb')};
  platformDom.clip=scene.querySelector('#salta-clip rect');
  platformDom.rig=Object.fromEntries(['body','head','hair','fringe','eyes','brows','smile','arm-left','arm-right','forearm-left','forearm-right','leg-left','leg-right','shin-left','shin-right'].map(part=>[part,one(`.explorer-${part}`)]));
- platformDom.sharkRig=Object.fromEntries(['swimmer','body','rear','tail','tail-tip','fin','far-fin','dorsal','mouth-inner','jaw','eye','pupil','brow','cheek','glaze','wake','trail','shadow','alert'].map(part=>[part,scene.querySelector(`.platform-shark-${part}`)]));
+ platformDom.sharkRig=Object.fromEntries(['swimmer','body','rear','tail','tail-tip','fin','far-fin','dorsal','mouth-inner','jaw','eye','pupil','brow','cheek','glaze','wake','trail','shadow','alert','charge','aim','escape','impact'].map(part=>[part,scene.querySelector(`.platform-shark-${part}`)]));
  platformDom.sharkWater=['launch','landing'].map(kind=>{
   const node=scene.querySelector(`.platform-shark-${kind}`);
   return {kind,node,foam:node.querySelector('.shark-foam'),rings:[...node.querySelectorAll('.shark-ring')],drops:[...node.querySelectorAll('.shark-drop')]};
@@ -154,7 +154,7 @@ function ensurePlatformShark(p){
  return p.shark ||= {x:300,y:20,vx:70,vy:0,heading:0,facing:1,turnScale:1,time:0,angle:-Math.PI/2,
   speed:.34,targetSpeed:.34,variation:Math.random()*Math.PI*2,nextTurn:3000,tailPhase:0,swimPower:.7,
   mode:'patrol',modeAt:0,nextBite:2200+Math.random()*1800,graceUntil:1600,
-  nextBlink:1800+Math.random()*2000,blinkAt:-Infinity,nextWater:2400+Math.random()*2500,launchAt:-Infinity,landingAt:-Infinity};
+  nextBlink:1800+Math.random()*2000,blinkAt:-Infinity,nextWater:2400+Math.random()*2500,launchAt:-Infinity,landingAt:-Infinity,escapeAt:-Infinity,impactAt:-Infinity};
 }
 function platformSharkPose(s){
  const age=s.time-s.modeAt,biting=s.mode==='bite',windup=s.mode==='windup';
@@ -278,10 +278,15 @@ function platformSharkResolve(p,s,decks){
   if(!moved&&!dx&&!dy)break;
  }
 }
-function platformSharkAttackPlan(p,s,decks,target){
- if(s.turnScale<.98)return null;
+function platformSharkAttackPlan(p,s,decks){
+ // Wait for a reachable, grounded player. A jump during the warning is a dodge.
+ if(s.turnScale<.98||p.airborne||p.jumpAt!==null||p.fell||platformSharkCentralSafe(p))return null;
  const player=platformSharkPlayer(p),head={x:(player[0].x+player[1].x)/2,y:(player[0].y+player[2].y)/2};
- const targets=target?[target]:[head,{x:head.x-5,y:head.y+8},{x:head.x+5,y:head.y+8}];
+ const support=platformAt(p.x,p.y,p.centers),deck=support>=0?p.bodies[support]:null;
+ const vx=p.vx+(deck?.vx||0),vy=p.vy+(deck?.vy||0),lead=Math.min(.22,32/(Math.hypot(vx,vy*.68)||1));
+ const predicted={x:head.x+vx*lead,y:head.y+vy*.68*lead};
+ if(SaltaPhysics.at(p.x+vx*lead,p.y+vy*lead,[p.centers[0]])===0)return null;
+ const targets=[predicted,head,{x:head.x-5,y:head.y+8},{x:head.x+5,y:head.y+8}];
  for(const point of targets){
   if(Math.hypot(point.x-s.x,point.y-s.y)>170||(point.x-s.x)*s.facing<5)continue;
   const preview={...s,x:0,y:0,mode:'bite',modeAt:0,time:435,biteDuration:580};
@@ -315,20 +320,25 @@ function advancePlatformShark(p,now,seconds){
    s.nextPlan=s.time+180;
    const plan=platformSharkAttackPlan(p,s,decks);
    if(plan){
-    s.mode='windup';s.modeAt=s.time;s.target=plan.target;s.windup=580+Math.random()*200;
+    s.mode='windup';s.modeAt=s.time;s.target=plan.target;s.windup=640+Math.random()*120;s.nextTrack=s.time+90;
     s.biteDuration=580;s.hit=false;s.splashed=false;
     SoundWorld.play('shark-warning');
    }
   }
-  if(s.mode==='windup'&&(!playing||s.time<s.graceUntil)){
-   s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+3000+Math.random()*3500;
+  if(s.mode==='windup'&&(!playing||s.time<s.graceUntil||p.airborne||p.jumpAt!==null)){
+   s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+1400;
   }
-  if(s.mode==='windup'&&s.time-s.modeAt>=s.windup){
-   const plan=platformSharkAttackPlan(p,s,decks,s.target);
+  if(s.mode==='windup'&&(s.time>=s.nextTrack||s.time-s.modeAt>=s.windup)){
+   // Recheck the current player/decks until take-off, then commit to one path.
+   const plan=platformSharkAttackPlan(p,s,decks);
    if(plan){
-    s.mode='bite';s.modeAt=s.time;s.start={x:s.x,y:s.y};s.end=plan.end;
-    s.launchAt=s.time;s.launchX=s.x;s.launchY=s.y;SoundWorld.play('shark-rise');
-   }else{s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+1800;}
+    s.target=plan.target;s.nextTrack=s.time+90;
+    if(s.time-s.modeAt>=s.windup){
+     s.mode='bite';s.modeAt=s.time;s.start={x:s.x,y:s.y};s.end=plan.end;
+     s.launchAt=s.time;s.launchX=s.x;s.launchY=s.y;
+     platformBurst(p,now,s.x,s.y+12,'water',12);SoundWorld.play('shark-rise');
+    }
+   }else{s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+1400;}
   }
   let lookX,lookY;
   if(s.mode==='bite'){
@@ -348,6 +358,7 @@ function advancePlatformShark(p,now,seconds){
     s.angle=Math.atan2((s.y-height/2-32)/radiusY,(s.x-300)/radiusX);
     s.landingAt=s.time;s.landingX=s.x;s.landingY=s.y;
     platformBurst(p,now,s.x,s.y+12,'water',16);SoundWorld.play('shark-dive');
+    if(!s.hit&&playing){s.escapeAt=s.time;s.escapeX=s.x;s.escapeY=s.y;SoundWorld.play('shark-dodge');}
    }
   }else{
    const waiting=s.mode==='windup',dx=orbit.x-s.x,dy=orbit.y-s.y;
@@ -375,7 +386,9 @@ function advancePlatformShark(p,now,seconds){
   platformSharkResolve(p,s,decks);
   const contact=platformSharkPose(s);
   if(contact.biting&&contact.progress>=.62&&contact.progress<=.98&&!s.hit&&playing&&s.time>=s.graceUntil&&
-   platformSharkClear(p,s,decks)&&platformSharkOverlap(platformSharkJaw(s),platformSharkPlayer(p))){s.hit=true;caught=true;break;}
+   platformSharkClear(p,s,decks)&&platformSharkOverlap(platformSharkJaw(s),platformSharkPlayer(p))){
+   s.hit=true;caught=true;s.impactAt=s.time;const mouth=platformSharkMouth(s);s.impactX=mouth.x;s.impactY=mouth.y;break;
+  }
   if(s.time>=s.nextBlink){s.blinkAt=s.time;s.nextBlink=s.time+2200+Math.random()*3600;}
   if(s.time>=s.nextWater){if(s.mode==='patrol')SoundWorld.play('shark-swim');s.nextWater=s.time+4300+Math.random()*4200;}
  }
@@ -415,7 +428,16 @@ function drawPlatformShark(view,p,motion){
  rig.trail.style.opacity=biting?.1:.3+power*.22;
  platformAttribute(rig.trail,'stroke-dashoffset',motion?(-s.time/55).toFixed(2):0);
  rig.alert.style.opacity=windup?1:0;
- platformAttribute(rig.alert,'transform','translate(6 -46)');
+ platformAttribute(rig.alert,'transform',`translate(6 -46) scale(${windup&&motion?1+Math.sin(pose.charge*Math.PI*3)*.1:1})`);
+ rig.charge.style.opacity=windup?.45+pose.charge*.45:0;
+ platformAttribute(rig.charge,'transform',`translate(0 14) scale(${motion?1+pose.charge*.35:1} 1)`);
+ rig.aim.style.opacity=windup?.8:biting?Math.max(0,.8-pose.progress*3):0;
+ if(s.target)platformAttribute(rig.aim,'transform',`translate(${s.target.x-s.x} ${s.target.y-s.y}) scale(${windup&&motion?1.2-pose.charge*.2:1})`);
+ const escape=(s.time-s.escapeAt)/900,impact=(s.time-s.impactAt)/400;
+ rig.escape.style.opacity=escape>=0&&escape<1?1-escape:0;
+ if(escape>=0&&escape<1)platformAttribute(rig.escape,'transform',`translate(${s.escapeX-s.x} ${s.escapeY-s.y-42-(motion?escape*18:0)})`);
+ rig.impact.style.opacity=impact>=0&&impact<1?1-impact:0;
+ if(impact>=0&&impact<1)platformAttribute(rig.impact,'transform',`translate(${s.impactX-s.x} ${s.impactY-s.y}) scale(${motion?.7+impact*.8:1})`);
  for(const water of view.sharkWater){
   const age=(s.time-s[`${water.kind}At`])/1000;
   if(!motion||age<0||age>1.25){water.node.style.opacity=0;continue;}
@@ -682,6 +704,8 @@ function platformSharkArt(){return `<g data-static-art="salta-shark" class="plat
   <linearGradient id="salta-shark-fin" x2=".5" y2="1"><stop stop-color="#6aacc6"/><stop offset="1" stop-color="#32607f"/></linearGradient>
   <linearGradient id="salta-shark-belly" x2="0" y2="1"><stop stop-color="#fff7df"/><stop offset="1" stop-color="#c3e8df"/></linearGradient>
  </defs>
+ <g class="platform-shark-charge" opacity="0" fill="none" stroke="#fff0a8" stroke-width="2"><ellipse rx="44" ry="13"/><ellipse rx="53" ry="17" stroke-width="1" opacity=".6"/></g>
+ <g class="platform-shark-aim" opacity="0" fill="none" stroke="#ec9b45" stroke-width="2"><circle r="20" stroke-dasharray="7 5"/><path d="M-26 0h5m42 0h5M0-26v5m0 42v5" stroke="#fff2b7" stroke-width="3"/></g>
  <ellipse class="platform-shark-shadow" cy="14" rx="33" ry="9" fill="#144f71" opacity=".12"/>
  <ellipse class="platform-shark-wake" cy="14" rx="43" ry="10" fill="none" stroke="#cdfff2" stroke-width="1.8" stroke-dasharray="48 14 25 20"/>
  <g class="platform-shark-trail" fill="none" stroke="#d9fff6" stroke-width="2" stroke-linecap="round" stroke-dasharray="19 10"><path d="M-83-7q24-13 54-5M-86 12q25 12 54 4"/><path d="M-64 22q19 7 33 1" stroke-width="1.3"/></g>
@@ -710,6 +734,8 @@ function platformSharkArt(){return `<g data-static-art="salta-shark" class="plat
   <path class="platform-shark-glaze" d="M-39 8Q-3 22 23 12Q42 8 54 10Q32 28 3 25Q-23 21-39 8Z" fill="#5cced5" opacity=".14"/>
  </g></g>
  ${platformSharkWaterArt('launch')}${platformSharkWaterArt('landing')}
+ <g class="platform-shark-impact" opacity="0" fill="none" stroke="#fff2a3" stroke-width="3" stroke-linecap="round"><circle r="16" stroke-width="2"/><path d="M-26 0h6m40 0h6M0-26v6m0 40v6m-19-19 4-4m28-28 4-4m-38 0 4 4m28 28 4 4"/></g>
+ <g class="platform-shark-escape" opacity="0"><text text-anchor="middle" font-size="17" font-weight="900" fill="#fff9d9" stroke="#236279" stroke-width="3" paint-order="stroke">¡Uf!</text><circle cx="-24" cy="6" r="3" fill="#c8fff2"/><circle cx="24" cy="1" r="2" fill="#c8fff2"/></g>
  <g class="platform-shark-alert" opacity="0"><circle r="9" fill="#ffdf83" stroke="#fff8d7" stroke-width="1.8"/><path d="M0-5v6m0 4v.1" stroke="#7e4b36" stroke-width="2.5" stroke-linecap="round"/></g>
  </g>`;}
 function platformScene(round,lesson){const p=round.platform,bounds=platformSceneBounds(p);return `<svg class="platform-scene" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}" tabindex="0" role="group" aria-label="Escenario de Salta. Muévete con las flechas o WASD, salta con Espacio y evita al tiburón junto a las orillas."><defs><clipPath id="salta-clip"><rect x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" rx="28"/></clipPath></defs><g clip-path="url(#salta-clip)"><g class="platform-islands">${p.centers.map(([x,y],i)=>({x,y,i})).sort((a,b)=>a.y-b.y||a.x-b.x).map(({x,y,i})=>platformTile(lesson,p,x,y,i)).join('')}</g><g class="platform-celebration" aria-hidden="true"><ellipse rx="65" ry="42"/><ellipse rx="78" ry="51"/><path d="m-15-78 10 10 22-25"/></g><ellipse class="platform-shadow" cx="300" cy="260" rx="20" ry="8" fill="#173f52" opacity=".26"/><g class="platform-landing-ring" fill="none" stroke="#fff2c3" stroke-width="2" opacity="0"><ellipse rx="22" ry="9"/></g><g class="platform-player" transform="translate(300 259)" aria-label="Tu exploradora">${platformExplorer()}</g><g class="platform-splash" aria-hidden="true"><ellipse rx="37" ry="13"/><ellipse rx="53" ry="21" stroke-width="2"/><path d="M-30 0-45-24M-12-3-20-35M13-3 23-34M30 0 45-21"/></g><g class="platform-touch-ring" opacity="0" fill="none" stroke="#e1fff1" stroke-width="2" pointer-events="none"><ellipse rx="24" ry="12"/><ellipse rx="34" ry="17"/></g><g class="platform-particles" aria-hidden="true" pointer-events="none">${Array.from({length:40},()=>'<g class="platform-particle" opacity="0"><circle r="1"/><path d="M0-1.5.4-.4 1.5 0 .4.4 0 1.5-.4.4-1.5 0-.4-.4Z"/></g>').join('')}</g>${platformSharkArt()}<g class="platform-sparkles" aria-hidden="true" fill="#fffbd2"><path d="m40 200 3 7 7 3-7 3-3 7-3-7-7-3 7-3m490 88 3 7 7 3-7 3-3 7-3-7-7-3 7-3"/></g></g></svg>`;}

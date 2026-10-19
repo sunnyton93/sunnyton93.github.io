@@ -114,7 +114,7 @@ function spendCoins(amount){
  let saved=true;try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;}
  syncCoinHud();return saved;
 }
-function syncCoinHud(){const value=coinBalance.toLocaleString('es-MX');document.querySelectorAll('.hud-coins b,[data-coin-balance]').forEach(el=>{if(el.textContent!==value)el.textContent=value;});}
+function syncCoinHud(){const shown=typeof inactivityDisplayBalance==='function'?inactivityDisplayBalance():coinBalance,value=shown.toLocaleString('es-MX');document.querySelectorAll('.hud-coins b,[data-coin-balance],[data-inactivity-balance]').forEach(el=>{if(el.textContent!==value)el.textContent=value;});}
 document.addEventListener('visibilitychange',()=>{
  const round=adventure;if(!round||round.done||(!gameClockActive&&!round.blasterRunning))return;
  if(document.hidden){if(round.pausedAt===null)round.pausedAt=performance.now();clearInterval(gameClockTimer);gameClockTimer=null;}

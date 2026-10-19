@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = 'a0c110d9e48c.6dc0ae700a2d';
+const APP_VERSION = 'a0c110d9e48c.7c9b8f248f9d';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  '/audio/dictionary-en-us.json', '/audio/dictionary-en-us.mp3',

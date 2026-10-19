@@ -3,7 +3,7 @@ const SoundWorld = (()=>{
  let volumes={...defaults};try{const saved=JSON.parse(localStorage.getItem('ximena-audio')||'{}');for(const key of Object.keys(defaults))if(Number.isFinite(saved[key]))volumes[key]=Math.max(0,Math.min(1,saved[key]));}catch{}
  let master,effects,ambience,music,noise,loopTimer,melodyStep=0,nextMusicBeat=0,blasterNoise,wordBank;
  const lastEffects=new Map();
- const effectIntervals={tap:90,open:160,close:120,select:100,dialogue:350,reveal:180,hide:180,shuffle:200,pick:100,step:240,land:120,slide:1200,warning:900,notification:1200,'shark-swim':4000,'shark-warning':1800,'shark-snap':900,'shark-bite':900,'shark-rise':1200,'shark-dive':1200};
+ const effectIntervals={tap:90,open:160,close:120,select:100,dialogue:350,reveal:180,hide:180,shuffle:200,pick:100,step:240,land:120,slide:1200,warning:900,notification:1200,'shark-swim':4000,'shark-warning':1800,'shark-snap':900,'shark-bite':900,'shark-rise':1200,'shark-dive':1200,'shark-dodge':1200};
  const voices=new Set(),gainTargets=new WeakMap();
  function ramp(param,value){if(gainTargets.get(param)===value)return;gainTargets.set(param,value);const t=audioContext.currentTime;param.cancelScheduledValues(t);param.setTargetAtTime(value,t,.06);}
  function track(source,nodes=[]){voices.add(source);source.onended=()=>{voices.delete(source);source.disconnect();nodes.forEach(n=>n.disconnect());source.onended=null;};}
@@ -206,11 +206,20 @@ const SoundWorld = (()=>{
     case 'sink':breeze(.55,.12,500);note(240,0,.3,.08,'sine',effects,90);break;
     case 'splash':breeze(.32,.12,700);note(460,.04,.17,.035,'sine',effects,220);break;
     case 'shark-swim':{const pitch=330+Math.random()*100;breeze(.28,.035,700);note(pitch,.04,.13,.018,'sine',effects,pitch*1.8);break;}
-    case 'shark-warning':note(180,0,.23,.035,'triangle',effects,260);note(240,.14,.18,.025,'sine',effects,330);break;
-    case 'shark-rise':breeze(.24,.055,1600);note(380,.02,.17,.03,'sine',effects,720);break;
-    case 'shark-dive':breeze(.4,.095,650);note(220,.04,.2,.045,'sine',effects,95);note(600,.09,.11,.025,'sine',effects,250);break;
-    case 'shark-snap':breeze(.16,.065,900);note(260,0,.1,.035,'triangle',effects,100);break;
+    case 'shark-warning':note(165,0,.14,.055,'triangle',effects,220);note(220,.19,.15,.06,'triangle',effects,310);note(330,.4,.16,.045,'sine',effects,440);breeze(.5,.025,500);break;
+    case 'shark-rise':breeze(.32,.085,1800);note(290,0,.28,.045,'sine',effects,920);note(650,.09,.16,.025,'sine',effects,1300);break;
+    case 'shark-dive':breeze(.48,.12,750);note(220,.04,.22,.045,'sine',effects,95);note(680,.12,.12,.03,'sine',effects,210);note(440,.25,.1,.02,'sine',effects,160);break;
+    case 'shark-snap':breeze(.09,.09,1300);note(300,0,.1,.05,'triangle',effects,85);break;
     case 'shark-bite':breeze(.2,.13,550);note(190,0,.16,.075,'triangle',effects,75);note(520,.08,.11,.045,'sine',effects,250);break;
+    case 'shark-dodge':note(520,.06,.15,.035,'sine',effects,780);note(880,.19,.2,.03,'sine',effects,1040);break;
+    case 'mordisquitos-arrive':breeze(.45,.075,850);note(160,0,.3,.05,'triangle',effects,230);note(330,.12,.28,.035,'sine',effects,180);break;
+    case 'mordisquitos-talk':
+     [190,245,210,275,200,230].forEach((pitch,i)=>{note(pitch,i*.14,.105,.055,'triangle',effects,pitch*.82);note(pitch*2.7,i*.14+.015,.075,.018,'sine',effects,pitch*2.2);});break;
+    case 'mordisquitos-laugh':
+     [240,215,195,165].forEach((pitch,i)=>{note(pitch,i*.21,.14,.075,'triangle',effects,pitch*.62);note(pitch*3,i*.21+.025,.09,.025,'sine',effects,pitch*1.7);});break;
+    case 'mordisquitos-take':breeze(.42,.09,1700);note(320,0,.35,.045,'sine',effects,720);break;
+    case 'mordisquitos-coin':note(1350,0,.11,.04,'sine',effects,950);note(2100,.035,.12,.02,'sine',effects,1400);break;
+    case 'mordisquitos-finish':note(220,0,.19,.055,'triangle',effects,110);note(640,.07,.16,.035,'sine',effects,320);break;
     case 'locked':sequence([330,294],.13,.23);break;
     case 'close':note(540,0,.15,.07,'sine',effects,340);break;
     default:note(680,0,.11,.065,'sine',effects,880);
