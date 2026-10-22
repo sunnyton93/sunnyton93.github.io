@@ -160,7 +160,8 @@ function platformSharkPose(s){
  const age=s.time-s.modeAt,biting=s.mode==='bite',windup=s.mode==='windup';
  const progress=biting?Math.min(1,age/s.biteDuration):0,charge=windup?Math.min(1,age/s.windup):0;
  const landing=(s.time-s.landingAt)/650;
- const lift=biting?27*4*progress*(1-progress):0;
+ const smooth=t=>t*t*(3-2*t);
+ const lift=biting?(s.overDeck?s.jumpHeight*smooth(Math.min(1,progress/.18,(1-progress)/.2)):27*4*progress*(1-progress)):0;
  const dip=windup?Math.sin(charge*Math.PI)*3:landing>=0&&landing<1?Math.sin(landing*Math.PI)*8*(1-landing*.4):0;
  const pitch=biting?-9*Math.sin(progress*Math.PI*2):windup?-charge*3:0;
  const close=biting?Math.max(0,Math.min(1,(progress-.62)/.38)):0;
@@ -254,9 +255,25 @@ function platformSharkSeparation(a,b){
 }
 function platformSharkOverlap(a,b){return !!platformSharkSeparation(a,b);}
 function platformSharkMouth(s){const jaw=platformSharkJaw(s);return {x:jaw.reduce((sum,p)=>sum+p.x,0)/jaw.length,y:jaw.reduce((sum,p)=>sum+p.y,0)/jaw.length};}
+function platformSharkDeckBlocks(s,deck){
+ // A projected silhouette is not a wall in the air. Only the target's outer
+ // deck may be cleared, after rising above its stone face; the centre stays protected.
+ return !(s.mode==='bite'&&s.overDeck&&deck.index>0&&deck.index===s.attackDeck&&platformSharkPose(s).lift>=50);
+}
+function platformSharkCollisionHull(s){
+ const hull=platformSharkHull(s);
+ // During an overhead leap, compare footprints on the water plane. Otherwise
+ // a lower deck's airborne shark falsely collides with the deck drawn above it.
+ const lift=s.mode==='bite'&&s.overDeck?platformSharkPose(s).lift:0;
+ return lift?hull.map(point=>({x:point.x,y:point.y+lift})):hull;
+}
+function platformSharkTravel(s,progress){
+ const t=s.overDeck&&progress>.75?1-Math.min(1,(progress-.75)/.2):Math.min(1,progress/(s.overDeck?.7:.72));
+ return t*t*(3-2*t);
+}
 function platformSharkClear(p,s,decks){
- const hull=platformSharkHull(s),bounds=platformSceneBounds(p);
- return hull.every(point=>point.x>=bounds.x&&point.x<=bounds.x+bounds.width&&point.y>=bounds.y&&point.y<=bounds.y+bounds.height)&&decks.every(deck=>!platformSharkOverlap(hull,deck.points));
+ const hull=platformSharkHull(s),footprint=platformSharkCollisionHull(s),bounds=platformSceneBounds(p);
+ return hull.every(point=>point.x>=bounds.x&&point.x<=bounds.x+bounds.width&&point.y>=bounds.y&&point.y<=bounds.y+bounds.height)&&decks.every(deck=>!platformSharkDeckBlocks(s,deck)||!platformSharkOverlap(footprint,deck.points));
 }
 function platformSharkResolve(p,s,decks){
  // Project penetration onto the nearest edge and remove only inward velocity.
@@ -264,12 +281,13 @@ function platformSharkResolve(p,s,decks){
  const bounds=platformSceneBounds(p);
  for(let iteration=0;iteration<16;iteration++){
   let moved=false;
-  let body=platformSharkHull(s);
+  let body=platformSharkCollisionHull(s);
   for(const deck of decks){
+   if(!platformSharkDeckBlocks(s,deck))continue;
    const push=platformSharkSeparation(body,deck.points);if(!push)continue;
    const nx=push.x/push.depth,ny=push.y/push.depth;
    s.x+=push.x+nx*.12;s.y+=push.y+ny*.12;
-   const inward=s.vx*nx+s.vy*ny;if(inward<0){s.vx-=inward*nx;s.vy-=inward*ny;}moved=true;body=platformSharkHull(s);
+   const inward=s.vx*nx+s.vy*ny;if(inward<0){s.vx-=inward*nx;s.vy-=inward*ny;}moved=true;body=platformSharkCollisionHull(s);
   }
   const hull=platformSharkHull(s),xs=hull.map(point=>point.x),ys=hull.map(point=>point.y);
   const dx=Math.max(0,bounds.x-Math.min(...xs))+Math.min(0,bounds.x+bounds.width-Math.max(...xs));
@@ -277,6 +295,13 @@ function platformSharkResolve(p,s,decks){
   s.x+=dx;s.y+=dy;if(dx)s.vx=0;if(dy)s.vy=0;
   if(!moved&&!dx&&!dy)break;
  }
+}
+const PLATFORM_SHARK_DETECTION_RADIUS=240;
+const PLATFORM_SHARK_JUMP_REACH=210;
+function platformSharkDetectedPlayer(p,s){
+ if(p.airborne||p.jumpAt!==null||p.fell||platformSharkCentralSafe(p))return null;
+ const player=platformSharkPlayer(p),head={x:(player[0].x+player[1].x)/2,y:(player[0].y+player[2].y)/2};
+ return Math.hypot(head.x-s.x,head.y-s.y)<=PLATFORM_SHARK_DETECTION_RADIUS?head:null;
 }
 function platformSharkAttackPlan(p,s,decks){
  // Wait for a reachable, grounded player. A jump during the warning is a dodge.
@@ -287,19 +312,22 @@ function platformSharkAttackPlan(p,s,decks){
  const predicted={x:head.x+vx*lead,y:head.y+vy*.68*lead};
  if(SaltaPhysics.at(p.x+vx*lead,p.y+vy*lead,[p.centers[0]])===0)return null;
  const targets=[predicted,head,{x:head.x-5,y:head.y+8},{x:head.x+5,y:head.y+8}];
- for(const point of targets){
-  if(Math.hypot(point.x-s.x,point.y-s.y)>170||(point.x-s.x)*s.facing<5)continue;
-  const preview={...s,x:0,y:0,mode:'bite',modeAt:0,time:435,biteDuration:580};
+ // Try the lowest clear arc first; different approaches need different heights
+ // to reach the face while keeping the landing point out of neighboring decks.
+ for(const jumpHeight of (support>0?[0,60,80,100,120]:[0]))for(const point of targets){
+  if(Math.hypot(point.x-s.x,point.y-s.y)>PLATFORM_SHARK_DETECTION_RADIUS||(point.x-s.x)*s.facing<-5)continue;
+  const overDeck=jumpHeight>0,biteDuration=overDeck?900:580;
+  const preview={...s,x:0,y:0,mode:'bite',modeAt:0,time:biteDuration*.75,biteDuration,overDeck,jumpHeight,attackDeck:support};
   const mouth=platformSharkMouth(preview),end={x:point.x-mouth.x,y:point.y-mouth.y};
-  if(Math.hypot(end.x-s.x,end.y-s.y)>145)continue;
+  if(Math.hypot(end.x-s.x,end.y-s.y)>PLATFORM_SHARK_JUMP_REACH)continue;
   let clear=true;
-  for(let i=0;i<=24&&clear;i++){
-   const t=i/24,u=Math.min(1,t/.72),ease=u*u*(3-2*u);
-   Object.assign(preview,{x:s.x+(end.x-s.x)*ease,y:s.y+(end.y-s.y)*ease,time:t*580,
+  for(let i=0;i<=36&&clear;i++){
+   const t=i/36,ease=platformSharkTravel(preview,t);
+   Object.assign(preview,{x:s.x+(end.x-s.x)*ease,y:s.y+(end.y-s.y)*ease,time:t*biteDuration,
     tailPhase:s.tailPhase+t*10,swimPower:1.4});
    clear=platformSharkClear(p,preview,decks);
   }
-  if(clear)return {target:{...point},end};
+  if(clear)return {target:{...point},end,overDeck,jumpHeight,attackDeck:support,biteDuration};
  }
  return null;
 }
@@ -316,6 +344,9 @@ function advancePlatformShark(p,now,seconds){
   const radiusY=height/2+44+6*Math.sin(wave*.37+variation);
   const orbit={x:300+radiusX*Math.cos(s.angle),y:height/2+32+radiusY*Math.sin(s.angle)};
   const playing=['seek','collapse'].includes(p.phase)&&!p.fell&&!platformSharkCentralSafe(p);
+  // Detect in every direction, then finish the visible turn before planning a bite.
+  const sensed=s.mode==='patrol'&&playing?platformSharkDetectedPlayer(p,s):null;
+  const turningToPlayer=sensed&&((sensed.x-s.x)*s.facing<0||s.turnScale<.98)&&s.time>=Math.max(s.nextBite,s.graceUntil);
   if(s.mode==='patrol'&&playing&&s.time>=Math.max(s.nextBite,s.graceUntil,s.nextPlan||0)){
    s.nextPlan=s.time+180;
    const plan=platformSharkAttackPlan(p,s,decks);
@@ -335,6 +366,7 @@ function advancePlatformShark(p,now,seconds){
     s.target=plan.target;s.nextTrack=s.time+90;
     if(s.time-s.modeAt>=s.windup){
      s.mode='bite';s.modeAt=s.time;s.start={x:s.x,y:s.y};s.end=plan.end;
+     s.overDeck=plan.overDeck;s.jumpHeight=plan.jumpHeight;s.attackDeck=plan.attackDeck;s.biteDuration=plan.biteDuration;
      s.launchAt=s.time;s.launchX=s.x;s.launchY=s.y;
      platformBurst(p,now,s.x,s.y+12,'water',12);SoundWorld.play('shark-rise');
     }
@@ -342,7 +374,7 @@ function advancePlatformShark(p,now,seconds){
   }
   let lookX,lookY;
   if(s.mode==='bite'){
-   const age=Math.min(1,(s.time-s.modeAt)/s.biteDuration),u=Math.min(1,age/.72),ease=u*u*(3-2*u);
+   const age=Math.min(1,(s.time-s.modeAt)/s.biteDuration),ease=platformSharkTravel(s,age);
    const x=s.start.x+(s.end.x-s.start.x)*ease,y=s.start.y+(s.end.y-s.start.y)*ease;
    s.vx=(x-s.x)/dt;s.vy=(y-s.y)/dt;s.x=x;s.y=y;
    lookX=s.vx;lookY=s.vy;
@@ -361,7 +393,7 @@ function advancePlatformShark(p,now,seconds){
     if(!s.hit&&playing){s.escapeAt=s.time;s.escapeX=s.x;s.escapeY=s.y;SoundWorld.play('shark-dodge');}
    }
   }else{
-   const waiting=s.mode==='windup',dx=orbit.x-s.x,dy=orbit.y-s.y;
+   const waiting=s.mode==='windup'||turningToPlayer,dx=orbit.x-s.x,dy=orbit.y-s.y;
    const length=Math.hypot(dx,dy)||1,speed=waiting?0:Math.min(120,length*2.8);
    const blend=1-Math.exp(-dt*(waiting?7:3.5));
    s.vx+=(dx/length*speed-s.vx)*blend;s.vy+=(dy/length*speed-s.vy)*blend;
@@ -371,8 +403,9 @@ function advancePlatformShark(p,now,seconds){
   }
   // Turn side-on through a narrow silhouette, with limited pitch. Swimming
   // down changes the fin strokes, never rotates the animal upside down.
+  if(sensed){lookX=sensed.x-s.x;lookY=sensed.y-s.y;}
   if(!['bite','windup'].includes(s.mode)&&Math.hypot(lookX,lookY)>.1){
-   const facing=Math.abs(lookX)>12?Math.sign(lookX):s.facing;
+   const facing=Math.abs(lookX)>(sensed?1:12)?Math.sign(lookX):s.facing;
    s.turnScale+=(facing===s.facing?1:-1)*(dt*2.6);
    s.turnScale=Math.max(.4,Math.min(1,s.turnScale));
    if(s.turnScale<=.4)s.facing=facing;
@@ -421,7 +454,7 @@ function drawPlatformShark(view,p,motion){
  platformAttribute(rig.cheek,'d',biting?'M17 2q-2 5 1 8':'M17 3q2-3 6-2');
  rig.glaze.style.opacity=biting?0:.14+dip*.04;
  rig.swimmer.style.opacity=1-dip*.025;
- platformAttribute(rig.shadow,'rx',(33-lift*.35).toFixed(2));rig.shadow.style.opacity=.12-lift*.002;
+ platformAttribute(rig.shadow,'rx',Math.max(6,33-lift*.35).toFixed(2));rig.shadow.style.opacity=Math.max(0,.12-lift*.002);
  platformAttribute(rig.wake,'rx',43+(motion?Math.sin(wave*.5)*3:0));
  rig.wake.style.opacity=biting?.16:.5;
  platformAttribute(rig.trail,'transform',`rotate(${heading.toFixed(2)}) scale(${.74*facing*turnScale} .74)`);
