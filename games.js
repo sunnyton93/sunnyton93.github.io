@@ -1,4 +1,7 @@
-const gameModes = {find:'Encuentra',connect:'Conecta',memory:'Memoria',archery:'Atrapa',platforms:'Salta',pirate:'Banderas',blaster:'Escribe'};
+const gameModes = {find:'Encuentra',connect:'Conecta',memory:'Memoria',archery:'Atrapa',platforms:'Salta',pirate:'Banderas',blaster:'Escribe',order:'Ordena'};
+// Enable the same reusable game in more zones or individual islands here.
+const EXTRA_ISLAND_GAMES={order:{zones:['spellingbee'],islands:[]}};
+function extraIslandModes(index){return Object.entries(EXTRA_ISLAND_GAMES).filter(([,rule])=>rule.zones.includes(oceanIslands[index]?.zone)||rule.islands.includes(index)).map(([mode])=>mode);}
 const ISLAND_LINEUP_KEY='ximena-island-games-v2';
 const REQUIRED_ISLAND_GAMES=['find','connect'];
 const MAIN_GAMES_PER_ISLAND=4,COMPLETION_COINS=40,MEMORY_COMPLETION_COINS=200;
@@ -30,7 +33,7 @@ function islandCoinMultiplier(index){
 }
 function islandCoinBadge(index){return islandCoinMultiplier(index)===2?'<span class="island-coin-bonus" title="Monedas dobles en todos los juegos de esta isla" aria-label="Monedas dobles en todos los juegos de esta isla">🪙 ×2</span>':'';}
 function readIslandGameLineups(){
- const candidates=Object.keys(gameModes).filter(mode=>mode!=='memory'&&!REQUIRED_ISLAND_GAMES.includes(mode));
+ const candidates=Object.keys(gameModes).filter(mode=>mode!=='memory'&&!REQUIRED_ISLAND_GAMES.includes(mode)&&!EXTRA_ISLAND_GAMES[mode]);
  let stored={};try{stored=JSON.parse(localStorage.getItem(ISLAND_LINEUP_KEY)||'{}')||{};}catch{}
  const lineups={};let changed=false;
  for(let index=0;index<islandLessons.length;index++){
@@ -42,10 +45,10 @@ function readIslandGameLineups(){
  if(changed){try{localStorage.setItem(ISLAND_LINEUP_KEY,JSON.stringify(lineups));}catch{islandLineupSaved=false;}}
  return lineups;
 }
-function progressionModes(index=0){return islandGameLineups[index]||[];}
+function progressionModes(index=0){return [...(islandGameLineups[index]||[]),...extraIslandModes(index)];}
 function islandModes(index){return [...progressionModes(index),'memory'];}
 function lastGameMode(index){return progressionModes(index).at(-1);}
-function starsPerIsland(){return MAIN_GAMES_PER_ISLAND*3;}
+function starsPerIsland(index=0){return progressionModes(index).length*3;}
 // Preserve stars already earned in games removed by the one-time draw.
 function isRedStarIsland(index){return oceanIslands[index]?.zone==='spellingbee';}
 function redStarIcon(){return '<span class="red-star-icon" aria-hidden="true">★</span>';}
@@ -65,11 +68,11 @@ const MAX_COIN_IMPROVEMENTS=3;
 let bestTimes={};
 function readCoinImprovements(){
  const counts={};
- try{const stored=JSON.parse(localStorage.getItem(COIN_IMPROVEMENTS_KEY)||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=0)counts[key]=Math.min(value,MAX_COIN_IMPROVEMENTS);}catch{}
+ try{const stored=JSON.parse(localStorage.getItem(COIN_IMPROVEMENTS_KEY)||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isInteger(value)&&value>=0)counts[key]=Math.min(value,MAX_COIN_IMPROVEMENTS);}catch{}
  return counts;
 }
 let coinImprovements=readCoinImprovements();
-const COIN_PACE_SECONDS={find:6,connect:8,memory:12,archery:7,platforms:9,pirate:6,blaster:12};
+const COIN_PACE_SECONDS={find:6,connect:8,memory:12,archery:7,platforms:9,pirate:6,blaster:12,order:15};
 let gameClockTimer,gameClockActive=false;
 function startGameClock(){gameClockActive=true;clearInterval(gameClockTimer);gameClockTimer=document.hidden?null:setInterval(updateGameClock,100);}
 function stopGameClock(){gameClockActive=false;clearInterval(gameClockTimer);gameClockTimer=null;}
@@ -134,7 +137,7 @@ function coinRewardView(round){
  if(!round.coins)return '';
  return `<div class="coin-reward" role="status">${goldCoinIcon()}<div><strong>+${round.coins} monedas</strong>${round.coinMultiplier===2?'<small>¡Recompensa doble de esta isla!</small>':''}</div></div>`;
 }
-try {const stored=JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=value;} catch {}
+try {const stored=JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=value;} catch {}
 // Conversion keeps old unlocks without letting future red stars open new islands.
 const redStarPreviousAccess=readRedStarPreviousAccess();
 function readRedStarPreviousAccess(){
@@ -149,7 +152,7 @@ function readRedStarPreviousAccess(){
 }
 function readBestTimes(){
  const records={};
- try{const stored=JSON.parse(localStorage.getItem(BEST_TIMES_KEY)||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|memory|archery|platforms|pirate|blaster)$/.test(key)&&Number.isSafeInteger(value)&&value>=0)records[key]=value;}catch{}
+ try{const stored=JSON.parse(localStorage.getItem(BEST_TIMES_KEY)||'{}');for(const [key,value] of Object.entries(stored||{}))if(/^\d+-(find|connect|memory|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isSafeInteger(value)&&value>=0)records[key]=value;}catch{}
  return records;
 }
 bestTimes=readBestTimes();
@@ -586,16 +589,19 @@ function shootBalloon(button,aimPoint=null,gesture=null){
 function totalStars(){return legacyStars()+islandLessons.reduce((sum,_,index)=>sum+(isRedStarIsland(index)?0:islandStars(index)),0);}
 function totalRedStars(){return islandLessons.reduce((sum,_,index)=>sum+(isRedStarIsland(index)?Object.keys(gameModes).filter(mode=>mode!=='memory').reduce((value,mode)=>value+(islandProgress[`${index}-${mode}`]||0),0):0),0);}
 function islandStars(index){return progressionModes(index).reduce((sum,mode)=>sum+(islandProgress[`${index}-${mode}`]||0),0);}
+// Ordena can finish with zero stars; its saved time still records completion.
+function gameCompleted(index,mode){return (islandProgress[`${index}-${mode}`]||0)>0||(mode==='order'&&bestTimes[`${index}-${mode}`]!==undefined);}
 function isGameUnlocked(index,mode,developerAccess=false){
  if(mode==='memory')return true;
+ if(extraIslandModes(index).includes(mode))return true;
  const modes=progressionModes(index),position=modes.indexOf(mode);
- return position>=0&&((developerAccess&&islandDevSettings.rightClickEntry)||islandProgress[`${index}-${mode}`]>0||modes.slice(0,position).every(previous=>islandProgress[`${index}-${previous}`]>0));
+ return position>=0&&((developerAccess&&islandDevSettings.rightClickEntry)||gameCompleted(index,mode)||modes.slice(0,position).every(previous=>gameCompleted(index,previous)));
 }
 function startAdventure(index,mode=null,developerAccess=false){
  if(!islandLessons[index])return;
  const modes=progressionModes(index);
- if(!islandModes(index).includes(mode))mode=modes.find(candidate=>!islandProgress[`${index}-${candidate}`])||modes[0];
- const unfinished=modes.findIndex(candidate=>!islandProgress[`${index}-${candidate}`]);
+ if(!islandModes(index).includes(mode))mode=modes.find(candidate=>!gameCompleted(index,candidate))||modes[0];
+ const unfinished=modes.findIndex(candidate=>!gameCompleted(index,candidate));
  developerAccess=developerAccess&&islandDevSettings.rightClickEntry;
  if(!isGameUnlocked(index,mode,developerAccess)&&unfinished!==-1)mode=modes[unfinished];
  if(luceroRouteClosed(oceanIslands[index])&&!developerAccess){openLuceroGate();return;}
@@ -616,6 +622,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  adventure.coinMultiplier=islandCoinMultiplier(index);
  adventure.memoryReplay=mode==='memory'&&memoryBonusCompleted(index);
  adventure.startedAt=performance.now();adventure.pausedMs=0;adventure.pausedAt=document.hidden?adventure.startedAt:null;
+ if(mode==='order'){adventure.wordOrder=WordOrder.create(islandLessons[index].words);adventure.target=adventure.wordOrder.chosen.length;}
  if(mode==='archery'){adventure.archeryStarted=false;return;}
  if(mode==='platforms'){adventure.platformStarted=false;return;}
  if(mode==='pirate'){adventure.pirateStarted=false;return;}
@@ -624,7 +631,9 @@ function startAdventure(index,mode=null,developerAccess=false){
 }
 function finishAdventure(){
  if(adventure?.memoryExhausted)return;
+ if(adventure?.mode==='order'&&adventure.wordOrder?.solved.length!==adventure.target)return;
  const a=adventure;if(!a||a.done||(a.mode==='archery'&&!a.archeryStarted)||(a.mode==='platforms'&&!a.platformStarted)||(a.mode==='pirate'&&!a.pirateStarted)||(a.mode==='blaster'&&(!a.blasterStarted||a.step!==a.target)))return;
+ const wasComplete=islandComplete(a.index);
  if(a.connectBoards)clearSpellingBeeConnectTimers();
  a.durationMs=Math.round(elapsedGameMs(a));stopGameClock();
  recordCompletion(a);
@@ -635,10 +644,9 @@ function finishAdventure(){
  a.coinsSaved=a.coins>0?awardCoins(a.coins,`game:${a.index}-${a.mode}`):true;
  if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
  // Preserve improvements already saved by another open window.
- try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
- const wasComplete=islandComplete(a.index);
+ try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
  const previousStars=totalStars(),previousCollectedStars=previousStars+totalRedStars();
- a.done=true;a.stars=a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=(['connect','pirate','archery'].includes(a.mode)?1:2)?2:1;
+ a.done=true;a.stars=a.mode==='order'?WordOrder.stars(a.wordOrder.hintsUsed,a.wordOrder.mistakes):a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=(['connect','pirate','archery'].includes(a.mode)?1:2)?2:1;
  const key=`${a.index}-${a.mode}`;islandProgress[key]=Math.max(islandProgress[key]||0,a.stars);
  a.newlyUnlocked=oceanIslands.flatMap((island,index)=>isIslandLocked(island,previousStars)&&!isIslandLocked(island)?[index]:[]);
  const addedStars=totalStars()+totalRedStars()-previousCollectedStars;
@@ -648,6 +656,8 @@ function finishAdventure(){
  a.islandCompleted=a.mode===lastGameMode(a.index)&&islandComplete(a.index);a.justCompletedIsland=!wasComplete&&a.islandCompleted;
 }
 function cancelGameTurn(){
+ clearWordOrderFeedback();
+ clearWordOrderDrag();
  closeMemoryLoss();
  cancelPlatforms();
  clearConnectDrag();
@@ -766,7 +776,7 @@ function animateAdventure(action,button,oldCount){
 }
 function lessonStatusView(round,count){
  if(['find','connect','memory'].includes(round.mode))return '';
- const detail=round.mode==='platforms'?' rescates':['archery','pirate'].includes(round.mode)?' aciertos':'';
+ const detail=round.mode==='order'?' palabras resueltas':round.mode==='platforms'?' rescates':['archery','pirate'].includes(round.mode)?' aciertos':'';
  return `<div class="lesson-status"><span>${gameModes[round.mode]} · ${count} / ${round.target}${detail}</span><span class="game-clock" role="timer" aria-label="Tiempo de partida"><span aria-hidden="true">◷</span> <time>${gameTime(elapsedGameMs(round))}</time></span></div>`;
 }
 function spellingBeeConnectBoardView(a,lesson,board,boardIndex){
@@ -775,19 +785,19 @@ function spellingBeeConnectBoardView(a,lesson,board,boardIndex){
 }
 function adventureView(){
  const a=adventure,lesson=islandLessons[a.index],name=oceanIslands[a.index].name;
- const count=['find','archery','platforms','pirate','blaster'].includes(a.mode)?a.step:a.matched.length;
+ const count=['find','archery','platforms','pirate','blaster','order'].includes(a.mode)?a.step:a.matched.length;
  let content='';
  if(a.done&&a.mode==='memory'){
   content=`<div class="island-result"><div class="lesson-icon">${goldCoinIcon()}</div><h2>¡Bonus completado!</h2>${a.memoryReplay?'<p>Ya habías completado este bonus en esta isla. Esta partida no otorga monedas.</p>':coinRewardView(a)}${resultActions()}</div>`;
  }else if(a.done){
-  content=`<div class="island-result"><div class="lesson-icon">${wordIcon(lesson.words[0])}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars${isRedStarIsland(a.index)?' red-stars':''}" role="img" aria-label="${a.stars} de 3 estrellas${isRedStarIsland(a.index)?' rojas':''}">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
+  content=`<div class="island-result"><div class="lesson-icon">${wordIcon(lesson.words[0])}</div><h2>${a.islandCompleted?'¡Isla completada!':`¡Completaste ${gameModes[a.mode]}!`}</h2>${a.justCompletedIsland&&nextIslands(a.index).length>0?'<div class="island-complete-seal" aria-label="Isla completada"><span aria-hidden="true">⚓</span><i></i><i></i><i></i></div>':''}<div class="earned-stars${isRedStarIsland(a.index)?' red-stars':''}" role="img" aria-label="${a.stars} de 3 estrellas${isRedStarIsland(a.index)?' rojas':''}">${[1,2,3].map(n=>`<span class="result-star ${n<=a.stars?'is-earned':'is-unearned'}" style="--star-index:${n-1}" aria-hidden="true">★</span>`).join('')}</div>${a.mode==='order'?wordOrderResultView(a):''}${coinRewardView(a)}${a.coinImprovementLimitReached?'<p role="status">Ya alcanzaste las 3 mejoras con monedas para este juego en esta isla.</p>':''}${unlockCelebration(a.newlyUnlocked,a.unlockDismissed)}${resultActions()}</div>`;
  }else if(a.mode==='find'){
   const word=lesson.words[a.order[a.step]];
   content=`<h2 class="word">${word.en}</h2><div class="lesson-grid find-grid${oceanIslands[a.index].zone==='spellingbee'?' spellingbee-find-grid':''}">${a.left.map(id=>{const w=lesson.words[id];return `<button class="lesson-card ${a.checked&&id===word.id?'is-known':''} ${a.wrong.includes(id)?'is-wrong':''}" data-play="find" data-id="${id}" ${a.pending?'disabled':''}><span class="lesson-icon" aria-hidden="true">${wordIcon(w)}</span><b>${w.es}</b></button>`;}).join('')}</div>`;
  }else if(a.mode==='connect'){
   content=a.connectBoards?`<div class="spellingbee-connect-zone">${a.connectBoards.map((board,index)=>spellingBeeConnectBoardView(a,lesson,board,index)).join('')}</div>`:`<div class="connect-board" data-connect-board="0">${connectLinks(a)}${['left','right'].map(side=>`<div>${a[side].map(id=>`<button class="pair-card ${a.matched.includes(id)?'is-matched':''} ${a.picks.includes(`${side}-${id}`)?'is-picked':''} ${a.wrong.includes(`${side}-${id}`)?'is-wrong':''}" data-play="connect" data-board="0" data-side="${side}" data-id="${id}" aria-pressed="${a.picks.includes(`${side}-${id}`)}" ${a.pending||a.matched.includes(id)?'disabled':''}><span class="pair-orb" aria-hidden="true">${a.matched.includes(id)?'✓':a.picks.includes(`${side}-${id}`)?'•':'◇'}</span><span class="pair-word">${lesson.words[id][side==='left'?'en':'es']}</span></button>`).join('')}</div>`).join('')}</div>`;
  }else{
-  content=a.mode==='blaster'?blasterView(a):a.mode==='pirate'?pirateView(a,lesson):a.mode==='platforms'?platformView(a,lesson):a.mode==='archery'?archeryView(a,lesson):memoryView(a);
+  content=a.mode==='order'?wordOrderView(a):a.mode==='blaster'?blasterView(a):a.mode==='pirate'?pirateView(a,lesson):a.mode==='platforms'?platformView(a,lesson):a.mode==='archery'?archeryView(a,lesson):memoryView(a);
  }
  return `${header(`${name} ${islandCoinBadge(a.index)}`,lesson.topic)}<section class="island-game"><ol class="lesson-modes" aria-label="Juegos de la isla">${islandModes(a.index).map(mode=>[mode,gameModes[mode]]).map(([mode,label])=>`<li><button class="lesson-mode" data-play="mode" data-mode="${mode}" aria-pressed="${a.mode===mode}" ${isGameUnlocked(a.index,mode,a.developerAccess)?'':'disabled'}><span>${mode==='memory'?'':`${progressionModes(a.index).indexOf(mode)+1}. `}${label}${isGameUnlocked(a.index,mode,a.developerAccess)?'':' <span aria-label="Bloqueado">🔒</span>'}</span>${modeStars(a.index,mode)}</button></li>`).join('')}</ol>${islandLineupSaved?'':'<p role="status">No se pudo guardar el sorteo. Permite el almacenamiento para conservar los juegos al volver.</p>'}${!a.done&&a.mode!=='blaster'&&(a.mode!=='archery'||a.archeryStarted)&&(a.mode!=='platforms'||a.platformStarted)&&(a.mode!=='pirate'||a.pirateStarted)?`${lessonStatusView(a,count)}<div class="lesson-track" role="progressbar" aria-label="Progreso del juego" aria-valuemin="0" aria-valuemax="${a.target}" aria-valuenow="${count}"><span style="width:${count/a.target*100}%"></span>${Array.from({length:a.target},(_,i)=>i+1).map(n=>`<i class="${count>=n?'is-filled':''}" aria-hidden="true">${count>=n?(a.mode==='memory'?'✓':'★'):'·'}</i>`).join('')}</div>`:''}${content}<span class="game-announcement" role="status" aria-live="polite" aria-atomic="true">${a.notice}</span></section>`;
 }
@@ -803,6 +813,7 @@ function handleAdventure(button){
  if(action==='platform-start'){beginPlatforms();return;}
  if(action==='pirate-start'){beginPirate();return;}
  if(action==='pirate-choice'){choosePirate(Number(button.dataset.side));return;}
+ if(action.startsWith('order-')){handleWordOrder(button);return;}
  if(action==='platform-control')return;
  if(action==='archery')return;
  const oldCount=a.matched.length+Number(a.checked);
@@ -813,7 +824,7 @@ function handleAdventure(button){
   startAdventure(a.index,button.dataset.mode,a.developerAccess);render();return;
  }
  if(action==='restart'){SoundWorld.play('retry');startAdventure(a.index,a.mode,a.developerAccess);}
- else if(action==='next'&&a.done){const modes=progressionModes(a.index),next=modes.indexOf(a.mode)+1;if(next<modes.length){SoundWorld.play('select');startAdventure(a.index,modes[next],a.developerAccess);}else if(!islandComplete(a.index)){SoundWorld.play('select');startAdventure(a.index,progressionModes(a.index).find(mode=>!islandProgress[`${a.index}-${mode}`]),a.developerAccess);}else if(nextIslands(a.index).length===1){voyageToIsland(a.index,nextIslands(a.index)[0]);return;}else if(nextIslands(a.index).length>1){SoundWorld.play('open');render();return;}else{SoundWorld.play('close');screen='map';render();return;}}
+ else if(action==='next'&&a.done){const modes=progressionModes(a.index),next=modes.indexOf(a.mode)+1;if(next<modes.length){SoundWorld.play('select');startAdventure(a.index,modes[next],a.developerAccess);}else if(!islandComplete(a.index)){SoundWorld.play('select');startAdventure(a.index,progressionModes(a.index).find(mode=>!gameCompleted(a.index,mode)),a.developerAccess);}else if(nextIslands(a.index).length===1){voyageToIsland(a.index,nextIslands(a.index)[0]);return;}else if(nextIslands(a.index).length>1){SoundWorld.play('open');render();return;}else{SoundWorld.play('close');screen='map';render();return;}}
  else if(a.done)return;
  else if(action==='find'&&!a.pending){a.pending=true;if(id===a.order[a.step]){a.checked=true;a.notice='¡Correcto! Sigue así.';SoundWorld.play('correct');}else{a.wrong=[id];a.mistakes++;a.notice='Todavía no. Mira las opciones y prueba de nuevo.';SoundWorld.play('wrong');}}
  else if(action==='connect'&&!a.matched.includes(id)){
@@ -846,7 +857,7 @@ function handleAdventure(button){
  const same=candidates.find(el=>el.dataset.play===action&&el.dataset.id===button.dataset.id&&el.dataset.side===button.dataset.side&&el.dataset.mode===button.dataset.mode);
  ((action==='restart'&&adventure.mode==='memory'?document.querySelector('.memory-card'):null)||document.querySelector('.unlock-close')||same||document.querySelector('.result-action,.island-game .primary:not([hidden])')||candidates[0])?.focus({preventScroll:true});
 }
-function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Spelling Bee otorga estrellas rojas de colección. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong aria-label="${islandStars(index)} de ${starsPerIsland()} estrellas${isRedStarIsland(index)?' rojas':''}">${isRedStarIsland(index)?redStarIcon():'⭐'} ${islandStars(index)} / ${starsPerIsland()}</strong><small>${progressionModes(index).filter(mode=>islandProgress[`${index}-${mode}`]).length} / ${MAIN_GAMES_PER_ISLAND} juegos completados</small></button>`).join('')}</div>`;}
+function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Spelling Bee incluye además Ordena: 5 juegos y hasta 15 estrellas rojas de colección. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong aria-label="${islandStars(index)} de ${starsPerIsland(index)} estrellas${isRedStarIsland(index)?' rojas':''}">${isRedStarIsland(index)?redStarIcon():'⭐'} ${islandStars(index)} / ${starsPerIsland(index)}</strong><small>${progressionModes(index).filter(mode=>gameCompleted(index,mode)).length} / ${progressionModes(index).length} juegos completados</small></button>`).join('')}</div>`;}
 
 // Independent answer/exposure deadlines share the same pausable active-time clock.
 const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_HIDE_MS=250,PIRATE_ANSWER_MS=3000;

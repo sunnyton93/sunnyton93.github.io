@@ -34,7 +34,7 @@ function nextIslands(index){
  return route&&position+1<route.islands.length?[route.islands[position+1]]:[];
 }
 let activeVoyage=null;
-function islandComplete(index){return progressionModes(index).every(mode=>islandProgress[`${index}-${mode}`]>0);}
+function islandComplete(index){return progressionModes(index).every(mode=>gameCompleted(index,mode));}
 function islandRouteCurve(fromIndex,toIndex){
  const from=oceanIslands[fromIndex],to=oceanIslands[toIndex];
  const start=fromIndex===2?{x:1450,y:1420}:{x:from.x,y:from.y+125*from.scale},end={x:to.x,y:to.y+125*to.scale};

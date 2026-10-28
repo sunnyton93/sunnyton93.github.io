@@ -170,7 +170,7 @@ function platformSharkPose(s){
  const angle=Math.max(-.43,Math.min(.43,(s.heading||0)+facing*pitch*Math.PI/180));
  return {age,biting,windup,progress,charge,lift,dip,pitch,jaw,facing,turnScale,angle};
 }
-function platformSceneBounds(p){return {x:-136,y:-80,width:872,height:425+Math.max(0,p.spread-1)*210+224};}
+function platformSceneBounds(p){return {x:-66,y:-30,width:732,height:350+Math.max(0,p.spread-1)*190+185};}
 function platformDeckPose(p,index,now){
  const state=p.floats[index],motion=!calm&&!platformMotionPreference.matches,wave=now/1250+index*1.17;
  const bob=motion?Math.sin(wave)*1.2+Math.sin(wave*.71+index)*.45:0;
