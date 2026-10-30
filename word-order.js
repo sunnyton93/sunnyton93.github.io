@@ -148,8 +148,10 @@ function handleWordOrder(button) {
  }
  if (action === 'order-submit') {
   clearWordOrderDrag();
+  const attemptedWord=state.current,attemptedAnswer=state.slots.map(id=>state.tiles[id]?.letter||'').join('');
   const result = WordOrder.submit(state);
   if (!result) return;
+  recordWordAttempt(round,attemptedWord,result.correct?'correct':'incorrect',{answer:attemptedAnswer,reason:'spelling_submission'});
   round.step = state.solved.length; round.mistakes = state.mistakes;
   round.orderFeedback = result.correct ? 'correct' : 'wrong';
   round.orderMessage = result.correct ? '¡Una palabra más! Vamos con la siguiente.' : 'Esta palabra volverá más adelante. ¡Sigue jugando!';

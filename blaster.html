@@ -123,6 +123,8 @@
     <script>
         const session = new URLSearchParams(location.search).get('session');
         const send = (type,data={}) => parent.postMessage({game:'blaster',session,type,...data},location.origin);
+        let wordAttemptCounter=0;
+        const reportWordAttempt=(enemy,outcome,answer='')=>{if(enemy)send('word-attempt',{attempt:++wordAttemptCounter,word:enemy.word,outcome,answer});};
         let lastActivityPing=0;
         for(const name of ['pointerdown','keydown','input'])document.addEventListener(name,()=>{const now=Date.now();if(now-lastActivityPing>1000){lastActivityPing=now;send('activity');}},{capture:true});
         const soundManager={playShoot(){send('sound',{sound:'blaster-laser'});},playError(){send('mistake');send('sound',{sound:'wrong'});},playExplosion(){send('sound',{sound:'blaster-explosion'});},playCrash(){send('sound',{sound:'blaster-crash'});}};
@@ -528,6 +530,7 @@
                         createExplosion(activeEnemy.x, activeEnemy.y);
                         
                         enemies = enemies.filter(e => e !== activeEnemy);
+                        reportWordAttempt(activeEnemy,'correct',activeEnemy.word);
                         activeEnemy = null;
                         
                         score += 1;send('progress',{score});
@@ -547,6 +550,7 @@
                     }
                     updateHUDText();
                 } else {
+                    reportWordAttempt(activeEnemy,'incorrect',activeEnemy.word.slice(0,activeEnemy.typedIndex)+key);
                     soundManager.playError();
                 }
             }
@@ -616,6 +620,7 @@
                         enemies.splice(i, 1);
                         
                         // Perder vida
+                        reportWordAttempt(enemy,'timeout',enemy.word.slice(0,enemy.typedIndex));
                         lives--;send('mistake');
                         const correction=document.querySelector('#correction');
                         correction.replaceChildren();

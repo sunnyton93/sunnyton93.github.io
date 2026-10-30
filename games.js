@@ -378,6 +378,7 @@ function updateArcheryCountdown(){
  const remaining=Math.max(0,round.archeryDeadline-elapsedGameMs(round));
  if(remaining===0){
   cancelArcheryAim();round.mistakes++;round.streak=0;round.notice='¡Tiempo! Vamos con otra palabra y nuevos globos.';
+  recordWordAttempt(round,round.order[round.attempt%round.order.length],'timeout',{reason:'time_limit'});
   SoundWorld.play('wrong');advanceArcheryRound(round,false);
   const feedback=document.querySelector('.archery-feedback');if(feedback)feedback.textContent=round.notice;
   return;
@@ -573,6 +574,7 @@ function shootBalloon(button,aimPoint=null,gesture=null){
   field.querySelector('.archery-feedback').textContent=round.notice;
   field.querySelector('.archery-feedback').classList.add(correct?'is-correct':'archery-miss');
   if(!correct)round.mistakes++;
+  recordWordAttempt(round,round.order[round.attempt%round.order.length],correct?'correct':target?'incorrect':'movement_miss',{answer:islandLessons[round.index].words.find(word=>word.id===id)?.en,reason:target?'balloon_choice':'missed_shot'});
   if(target)SoundWorld.play('balloon-pop');
   SoundWorld.play(correct?(round.streak>1?'combo':'correct'):'wrong');
   if(motion&&target){
@@ -809,6 +811,17 @@ function adventureView(){
  }
  return `${header(`${name} ${islandCoinBadge(a.index)}`,lesson.topic)}<section class="island-game"><ol class="lesson-modes" aria-label="Juegos de la isla">${islandModes(a.index).map(mode=>[mode,gameModes[mode]]).map(([mode,label])=>`<li><button class="lesson-mode" data-play="mode" data-mode="${mode}" aria-pressed="${a.mode===mode}" ${isGameUnlocked(a.index,mode,a.developerAccess)?'':'disabled'}><span>${mode==='memory'?'':`${progressionModes(a.index).indexOf(mode)+1}. `}${label}${isGameUnlocked(a.index,mode,a.developerAccess)?'':' <span aria-label="Bloqueado">🔒</span>'}</span>${modeStars(a.index,mode)}</button></li>`).join('')}</ol>${islandLineupSaved?'':'<p role="status">No se pudo guardar el sorteo. Permite el almacenamiento para conservar los juegos al volver.</p>'}${!a.done&&a.mode!=='blaster'&&(a.mode!=='archery'||a.archeryStarted)&&(a.mode!=='platforms'||a.platformStarted)&&(a.mode!=='pirate'||a.pirateStarted)?`${lessonStatusView(a,count)}<div class="lesson-track" role="progressbar" aria-label="Progreso del juego" aria-valuemin="0" aria-valuemax="${a.target}" aria-valuenow="${count}"><span style="width:${count/a.target*100}%"></span>${Array.from({length:a.target},(_,i)=>i+1).map(n=>`<i class="${count>=n?'is-filled':''}" aria-hidden="true">${count>=n?(a.mode==='memory'?'✓':'★'):'·'}</i>`).join('')}</div>`:''}${content}<span class="game-announcement" role="status" aria-live="polite" aria-atomic="true">${a.notice}</span></section>`;
 }
+function recordWordAttempt(round,wordOrId,outcome,details={}){
+ const words=round.mode==='memory'?round.memoryVocabulary:islandLessons[round.index]?.words;
+ const word=typeof wordOrId==='object'?wordOrId:words?.find(item=>item.id===wordOrId);
+ window.XimenaMonitor?.wordAttempt(round,word,outcome,details);
+}
+function recordConnectWordAttempt(round,picks){
+ const left=picks.find(pick=>pick.startsWith('left-')),right=picks.find(pick=>pick.startsWith('right-'));
+ if(!left||!right)return;
+ const expected=Number(left.slice(5)),chosen=Number(right.slice(6)),word=islandLessons[round.index].words.find(item=>item.id===chosen);
+ recordWordAttempt(round,expected,expected===chosen?'correct':'incorrect',{answer:word?.es,reason:'translation_pair'});
+}
 function handleAdventure(button){
  const a=adventure,action=button.dataset.play,id=Number(button.dataset.id);if(!a||button.disabled)return;
  if(action==='unlock-close'&&a.done){a.unlockDismissed=true;SoundWorld.play('close');render();document.querySelector('[data-play="restart"]')?.focus({preventScroll:true});return;}
@@ -834,22 +847,24 @@ function handleAdventure(button){
  if(action==='restart'){SoundWorld.play('retry');startAdventure(a.index,a.mode,a.developerAccess);}
  else if(action==='next'&&a.done){const modes=progressionModes(a.index),next=modes.indexOf(a.mode)+1;if(next<modes.length){SoundWorld.play('select');startAdventure(a.index,modes[next],a.developerAccess);}else if(!islandComplete(a.index)){SoundWorld.play('select');startAdventure(a.index,progressionModes(a.index).find(mode=>!gameCompleted(a.index,mode)),a.developerAccess);}else if(nextIslands(a.index).length===1){voyageToIsland(a.index,nextIslands(a.index)[0]);return;}else if(nextIslands(a.index).length>1){SoundWorld.play('open');render();return;}else{SoundWorld.play('close');screen='map';render();return;}}
  else if(a.done)return;
- else if(action==='find'&&!a.pending){a.pending=true;if(id===a.order[a.step]){a.checked=true;a.notice='¡Correcto! Sigue así.';SoundWorld.play('correct');}else{a.wrong=[id];a.mistakes++;a.notice='Todavía no. Mira las opciones y prueba de nuevo.';SoundWorld.play('wrong');}}
+ else if(action==='find'&&!a.pending){recordWordAttempt(a,a.order[a.step],id===a.order[a.step]?'correct':'incorrect',{answer:islandLessons[a.index].words.find(word=>word.id===id)?.en,reason:'word_choice'});a.pending=true;if(id===a.order[a.step]){a.checked=true;a.notice='¡Correcto! Sigue así.';SoundWorld.play('correct');}else{a.wrong=[id];a.mistakes++;a.notice='Todavía no. Mira las opciones y prueba de nuevo.';SoundWorld.play('wrong');}}
  else if(action==='connect'&&!a.matched.includes(id)){
  const side=button.dataset.side,board=a.connectBoards?.[Number(button.dataset.board)];
  if(board){
   if(board.pending)return;
   if(!board.picks.length||board.picks[0].startsWith(side))SoundWorld.play('pick');board.picks=board.picks.filter(p=>!p.startsWith(side));board.picks.push(`${side}-${id}`);a.notice='Busca su traducción en este tablero.';
-  if(board.picks.length===2){const selected=[...board.picks],match=selected[0].split('-')[1]===selected[1].split('-')[1];board.picks=[];if(match){board.matched.push(id);a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{board.wrong=selected;board.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');const timer=setTimeout(()=>{spellingBeeConnectTimers.delete(Number(button.dataset.board));if(adventure!==a||screen!=='adventure'||a.done)return;board.pending=false;board.wrong=[];render();},500);spellingBeeConnectTimers.set(Number(button.dataset.board),timer);}if(a.matched.length===a.target)finishAdventure();}
+  if(board.picks.length===2){const selected=[...board.picks],match=selected[0].split('-')[1]===selected[1].split('-')[1];recordConnectWordAttempt(a,selected);board.picks=[];if(match){board.matched.push(id);a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{board.wrong=selected;board.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');const timer=setTimeout(()=>{spellingBeeConnectTimers.delete(Number(button.dataset.board));if(adventure!==a||screen!=='adventure'||a.done)return;board.pending=false;board.wrong=[];render();},500);spellingBeeConnectTimers.set(Number(button.dataset.board),timer);}if(a.matched.length===a.target)finishAdventure();}
  }else{
   if(!a.picks.length||a.picks[0].startsWith(side))SoundWorld.play('pick');a.picks=a.picks.filter(p=>!p.startsWith(side));a.picks.push(`${side}-${id}`);a.notice='Busca su traducción.';
-  if(a.picks.length===2){if(a.picks[0].split('-')[1]===a.picks[1].split('-')[1]){a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');}a.picks=[];if(a.matched.length===a.target)finishAdventure();}
+  if(a.picks.length===2){recordConnectWordAttempt(a,a.picks);if(a.picks[0].split('-')[1]===a.picks[1].split('-')[1]){a.matched.push(id);a.notice='¡Una pareja más!';SoundWorld.play('correct');}else{a.wrong=[...a.picks];a.pending=true;a.mistakes++;a.notice='Estas palabras no son pareja. Inténtalo de nuevo.';SoundWorld.play('wrong');}a.picks=[];if(a.matched.length===a.target)finishAdventure();}
  }
  }else if(action==='memory'&&a.picks.length<2&&!a.picks.includes(id)){
  const card=a.deck.find(c=>c.id===id);if(!card||a.matched.includes(card.word)||a.pending)return;
  if(a.picks.length===1){
   const first=a.deck.find(c=>c.id===a.picks[0]),mate=a.deck.find(c=>c.word===first.word&&c.id!==first.id);
   const knownMate=a.memorySeen.includes(mate.id),missKey=[first.id,id].sort((x,y)=>x-y).join(':');
+  const recallError=knownMate||a.memoryMisses.includes(missKey);
+  recordWordAttempt(a,first.word,card.word===first.word?'memory_correct':recallError?'memory_miss':'exploration',{answer:a.memoryVocabulary.find(word=>word.id===card.word)?.en,reason:recallError?'known_pair':'unseen_pair'});
   if(card.word===first.word){if(knownMate)a.memoryRecallHits++;}
   else{if(knownMate||a.memoryMisses.includes(missKey))a.memoryRecallErrors++;a.memoryMisses.push(missKey);}
  }
@@ -906,6 +921,7 @@ function resolvePirate(round,side){
  p.answerRemaining=Math.max(0,p.answerDeadline-now);
  if(p.answerRemaining===0)side=null;
  p.timedOut=side===null;p.selected=side;p.outcome=side===p.correctSide;p.phase=p.outcome?'success':'miss';p.phaseAt=now;round.pending=true;
+ recordWordAttempt(round,p.word,p.timedOut?'timeout':p.outcome?'correct':'incorrect',{answer:side===null?null:islandLessons[round.index].words.find(word=>word.id===p.options[side])?.en,reason:p.timedOut?'time_limit':'flag_choice'});
  if(p.outcome){round.streak++;round.notice='¡Muy bien!';SoundWorld.play(round.streak>1?'combo':'correct');}
  else{round.mistakes++;round.streak=0;round.notice=p.timedOut?'¡Se acabó el tiempo!':'¡Ups!';SoundWorld.play('pirate-swish');}
  render();
@@ -993,6 +1009,14 @@ window.addEventListener('message',event=>{
  if(data.type==='exit'){SoundWorld.play('close');screen='map';render();return;}
  if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;window.XimenaMonitor?.startRound(a);frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('ready');return;}
  if(!a.blasterRunning||document.hidden)return;
+ if(data.type==='word-attempt'){
+  if(!Number.isSafeInteger(data.attempt)||data.attempt<1||data.attempt<=(a.blasterLastWordAttempt||0)||!['correct','incorrect','timeout'].includes(data.outcome)||typeof data.word!=='string')return;
+  const word=islandLessons[a.index].words.find(item=>item.en.toUpperCase().replace(/[^A-Z]/g,'')===data.word);
+  if(!word)return;
+  a.blasterLastWordAttempt=data.attempt;
+  recordWordAttempt(a,word,data.outcome,{answer:data.answer,reason:data.outcome==='incorrect'?'wrong_letter':data.outcome==='timeout'?'asteroid_collision':'spelled_word'});
+  return;
+ }
  if(data.type==='sound'){if(['blaster-laser','blaster-explosion','blaster-crash','wrong'].includes(data.sound))SoundWorld.play(data.sound);}
  else if(data.type==='mistake')a.mistakes++;
  else if(data.type==='progress'&&data.score===a.step+1&&data.score<=a.target)a.step=data.score;

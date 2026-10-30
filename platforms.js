@@ -100,6 +100,7 @@ function consumePlatformJump(round,now){
 }
 function fallPlatforms(round,now,cause='water'){
  const p=round.platform;if(p.phase==='fall')return;
+ recordWordAttempt(round,round.order[round.attempt%round.order.length],'movement_miss',{reason:cause==='shark'?'shark':'water'});
  round.mistakes++;round.streak=0;p.phase='fall';p.phaseAt=now;p.sinkAt??=now;p.fallAt=now;p.fallCause=cause;p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.rider=-1;
  const word=islandLessons[round.index].words[round.order[round.attempt%round.order.length]].en;
  round.notice=cause==='shark'?`¡El tiburón te mordió! Perdiste esta ronda. La palabra era ${word}.`:`¡Al agua! La palabra era ${word}. ¡Vamos con otra palabra!`;
@@ -127,7 +128,7 @@ function tickPlatforms(){
    if(p.phase==='seek'&&now>=p.deadline){p.phase='collapse';p.phaseAt=now;p.sinkAt=now;SoundWorld.play('sink');}
    if(p.phase==='seek'&&p.deadline-now<=1000&&!p.timeWarned){p.timeWarned=true;SoundWorld.play('warning');}
    if(p.phase==='collapse'&&now-p.phaseAt>=1100){
-    if(support===p.safe&&p.jumpAt===null){p.phase='success';p.phaseAt=now;round.streak++;round.notice='¡A salvo! Encontraste la palabra.';platformBurst(p,now,p.x,80+p.y*.68,'gold',28);SoundWorld.play(round.streak>1?'combo':'correct');}
+    if(support===p.safe&&p.jumpAt===null){recordWordAttempt(round,round.order[round.attempt%round.order.length],'correct',{reason:'safe_platform'});p.phase='success';p.phaseAt=now;round.streak++;round.notice='¡A salvo! Encontraste la palabra.';platformBurst(p,now,p.x,80+p.y*.68,'gold',28);SoundWorld.play(round.streak>1?'combo':'correct');}
     // A jump can buy landing time, but can never skip the survival check.
     else if(now-p.phaseAt>1800)fallPlatforms(round,now);
    }

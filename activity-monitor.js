@@ -102,6 +102,11 @@
   visitIsland(index,name){record('island_visit',{island:index,name});},
   startRound(a){if(!enabled)return;if(round)api.finishRound(round.a,'abandoned');round={id:id(),a};record('round_start',{roundId:round.id,island:a.index,game:a.mode});},
   finishRound(a,outcome='completed'){if(!enabled||!round||round.a!==a)return;record('round_end',roundData(a,outcome));round=null;},
+  wordAttempt(a,word,outcome,details={}){
+   if(!enabled||!round||round.a!==a||!word||typeof word.en!=='string'||typeof word.es!=='string')return;
+   if(!['correct','incorrect','timeout','memory_correct','memory_miss','movement_miss','exploration'].includes(outcome))return;
+   record('word_attempt',{roundId:round.id,island:a.index,game:a.mode,word:{en:word.en.slice(0,160),es:word.es.slice(0,160)},outcome,answer:typeof details.answer==='string'?details.answer.slice(0,160):null,reason:typeof details.reason==='string'?details.reason.slice(0,64):null});
+  },
   coinChange(before,after,source,receiptId=null){if(before===after)return;record('coin_change',{before,after,delta:after-before,source,receiptId});},
   async allEvents(){await pending;return operation('events','readonly',s=>s.getAll());},
   async pendingEvents(){return (await api.allEvents()).filter(e=>!e.uploaded);},

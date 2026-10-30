@@ -1,5 +1,5 @@
 import * as f from '/vendor/firebase-client.js';
-import {summarize,presenceState,duration,GAME_NAMES,decode} from '/monitor-stats.mjs';
+import {summarize,summarizeWords,presenceState,duration,GAME_NAMES,decode} from '/monitor-stats.mjs';
 const cfg=window.XimenaMonitorConfig||{},$=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=at=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(at)):'—';
@@ -18,6 +18,16 @@ function remember(uid,event){if(!cache)return;try{cache.transaction('events','re
 function download(name,value){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 let renderTimer;
 function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(render,100);}
+function renderWordPractice(){
+ const result=summarizeWords([...events.values()],{game:$('word-game').value,search:$('word-search').value});
+ text('word-summary',`${result.ranking.length} palabras con fallos · primeras 50`);
+ $('word-ranking').innerHTML=result.ranking.slice(0,50).map(row=>{
+  const parts=[row.memoryErrors?`${number(row.memoryErrors)} memoria`:'',row.timeouts?`${number(row.timeouts)} tiempo`:'',row.movementErrors?`${number(row.movementErrors)} movimiento`:''].filter(Boolean).join(' · ');
+  return `<tr><td class="word-label"><b>${esc(row.en)}</b><small>${esc(row.es)}</small></td><td class="negative">${number(row.incorrect)}</td><td>${number(row.correct)}</td><td title="${esc(parts)}">${number(row.otherFailures)}${parts?`<small class="word-subtext">${esc(parts)}</small>`:''}</td><td>${date(row.lastErrorAt)}</td></tr>`;
+ }).join('')||empty(5,'Todavía no hay fallos por palabra para mostrar. Se registrarán cuando el iPad reciba esta actualización.');
+ const labels={incorrect:'Respuesta incorrecta',memory_miss:'Memoria',timeout:'Tiempo agotado',movement_miss:'Movimiento / caída'};
+ $('word-attempts').innerHTML=result.attempts.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(row.word.en)}</td><td>${esc(GAME_NAMES[row.game])}</td><td>${esc(row.reason==='wrong_letter'?'Letra incorrecta':labels[row.outcome])}</td><td>${esc(row.answer||'—')}</td></tr>`).join('')||empty(5,'No hay errores registrados para esta selección.');
+}
 function render(){
  const s=summarize([...events.values()],{timeZone:cfg.timeZone});
  const status=presenceState(presence),labels={active:'Jugando · activa',idle:'App abierta · inactiva',closed:'App en segundo plano o cerrada',unknown:'Sin conexión confirmada'};
@@ -44,6 +54,7 @@ function render(){
  $('coins').innerHTML=s.coins.slice(0,100).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(sourceName(row.source))}</td><td class="${row.delta>0?'positive':'negative'}">${row.delta>0?'+':'−'}${number(Math.abs(row.delta))}</td><td>${number(row.after)}</td></tr>`).join('')||empty(4,'El saldo anterior es el punto de partida; los nuevos movimientos aparecerán aquí.');
  $('download-backup').disabled=!backup;
  text('backup-status',backup?`Copia inicial recibida · ${date(backup.at)}. Incluye las claves originales del progreso guardado.`:'El respaldo inicial se recibirá cuando el iPad se conecte y autorices el dispositivo.');
+ renderWordPractice();
 }
 async function selectDevice(uid){
  deviceStops.forEach(stop=>stop());deviceStops=[];selected=uid;events=new Map();current=presence=backup=null;render();
@@ -94,4 +105,7 @@ $('pending-devices').addEventListener('click',async event=>{
 $('device-select').addEventListener('change',()=>f.set(f.ref(db,'settings/selectedDevice'),$('device-select').value).catch(()=>text('updated','No se pudo guardar la selección.')));
 $('export').addEventListener('click',()=>download(`ximena-historial-${new Date().toISOString().slice(0,10)}.json`,{schema:1,exportedAt:Date.now(),timeZone:cfg.timeZone,device:selected,current,events:[...events.values()].map(decode)}));
 $('download-backup').addEventListener('click',()=>{if(backup)download('ximena-respaldo-inicial.json',{schema:1,device:selected,...backup});});
+$('word-game').insertAdjacentHTML('beforeend',Object.entries(GAME_NAMES).map(([key,name])=>`<option value="${key}">${esc(name)}</option>`).join(''));
+$('word-game').addEventListener('change',renderWordPractice);
+$('word-search').addEventListener('input',renderWordPractice);
 setInterval(()=>{if(!$('dashboard').hidden)render();},60000);

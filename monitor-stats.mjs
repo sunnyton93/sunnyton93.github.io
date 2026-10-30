@@ -4,6 +4,34 @@ export function dayKey(at,timeZone='America/Hermosillo'){
  return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');
 }
 export function decode(event){try{return {...event,data:typeof event.payload==='string'?JSON.parse(event.payload):event.data||{}};}catch{return {...event,data:{}};}}
+export function summarizeWords(rawEvents,{game='',search=''}={}){
+ const normalize=value=>value.normalize('NFKC').replace(/[’‘]/g,"'").trim().replace(/\s+/g,' ').toLocaleLowerCase('en-US');
+ const needle=normalize(search),words=new Map(),attempts=[];
+ const valid=new Set(['correct','incorrect','timeout','memory_correct','memory_miss','movement_miss','exploration']);
+ const seen=new Set();
+ for(const raw of rawEvents){
+  if(raw.kind!=='word_attempt'||seen.has(raw.id))continue;seen.add(raw.id);
+  const event=decode(raw),d=event.data,word=d?.word;
+  if(!word||typeof word.en!=='string'||typeof word.es!=='string'||word.en.length>160||word.es.length>160||!normalize(word.en)||!normalize(word.es)||!valid.has(d.outcome)||!Object.prototype.hasOwnProperty.call(GAME_NAMES,d.game)||!Number.isFinite(event.at))continue;
+  if(game&&d.game!==game)continue;
+  if(needle&&!normalize(word.en+' '+word.es).includes(needle))continue;
+  const key=normalize(word.en)+'\u0000'+normalize(word.es);
+  if(!words.has(key))words.set(key,{key,en:word.en.trim(),es:word.es.trim(),correct:0,incorrect:0,memoryErrors:0,timeouts:0,movementErrors:0,exploration:0,otherFailures:0,lastErrorAt:null,lastAttemptAt:0,games:new Set()});
+  const row=words.get(key);row.games.add(d.game);row.lastAttemptAt=Math.max(row.lastAttemptAt,event.at);
+  if(d.outcome==='correct'||d.outcome==='memory_correct')row.correct++;
+  else if(d.outcome==='incorrect')row.incorrect++;
+  else if(d.outcome==='memory_miss'){row.memoryErrors++;row.otherFailures++;}
+  else if(d.outcome==='timeout'){row.timeouts++;row.otherFailures++;}
+  else if(d.outcome==='movement_miss'){row.movementErrors++;row.otherFailures++;}
+  else row.exploration++;
+  if(['incorrect','memory_miss','timeout','movement_miss'].includes(d.outcome)){
+   row.lastErrorAt=Math.max(row.lastErrorAt||0,event.at);
+   attempts.push({id:event.id,at:event.at,...d,answer:typeof d.answer==='string'?d.answer.slice(0,160):null});
+  }
+ }
+ const ranking=[...words.values()].filter(w=>w.incorrect||w.otherFailures).sort((a,b)=>b.incorrect-a.incorrect||b.otherFailures-a.otherFailures||b.lastErrorAt-a.lastErrorAt||a.en.localeCompare(b.en));
+ return {ranking,attempts:attempts.sort((a,b)=>b.at-a.at||a.id.localeCompare(b.id)),totalWords:words.size};
+}
 export function summarize(rawEvents,{timeZone='America/Hermosillo',now=Date.now(),days=7}={}){
  const events=[...new Map(rawEvents.map(e=>[e.id,e])).values()].map(decode).sort((a,b)=>a.at-b.at||a.id.localeCompare(b.id));
  const totals={totalMs:0,activeMs:0,idleMs:0,earned:0,spent:0,completed:0,lost:0,abandoned:0,correct:0,mistakes:0};
