@@ -1,8 +1,9 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = '383339d05c38.277e09964faa';
+const APP_VERSION = 'bfbc271de828.606c6b6d3029';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
+ "/monitor-config.js","/activity-monitor.js","/monitor-cloud.js","/monitor.html","/monitor.css","/monitor-dashboard.js","/monitor-stats.mjs","/vendor/firebase-client.js",
  '/audio/dictionary-en-us.json', '/audio/dictionary-en-us.mp3',
  '/', '/style.css', '/app-shell.css', '/ocean.js', '/archipelago.js', '/sound.js',
  '/island-vocabulary.js', '/spellingbee-islands.js', '/spellingbee-art.js', '/games.js', '/word-order.js', '/archery-motion.js', '/platform-physics.js', '/platforms.js', '/app.js', '/inactivity.js', '/pwa.js',

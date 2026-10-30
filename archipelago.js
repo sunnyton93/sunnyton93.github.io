@@ -143,6 +143,7 @@ async function enterIsland(index,action,developerAccess=false){
  if(luceroRouteClosed(island)&&!developerAccess){openLuceroGate();return;}
  if(isIslandLocked(island)&&!developerAccess){lockedIslandIndex=index;cancelGameTurn();screen='locked';SoundWorld.play('locked');render();return;}
  islandTravelActive=true;
+ window.XimenaMonitor?.visitIsland(index,island.name);
  adventureSound();
  const reduced=calm||matchMedia('(prefers-reduced-motion: reduce)').matches;
  const app=document.querySelector('.world-app'),canvas=document.querySelector('.map-canvas');
@@ -511,7 +512,7 @@ async function openRoomDecoy(button){
   if(roomDecoyUsed(type))return false;
   try{localStorage.setItem(roomDecoyKey(type),'1');}
   catch{if(dialog.isConnected)announceOcean('No se pudo guardar este intento. No se descontaron monedas.');return false;}
-  const saved=spendCoins(50);
+  const saved=spendCoins(50,`room:${type}:decoy`);
   if(dialog.isConnected&&dialog.dataset.islandRoom===type){
    SoundWorld.play('wrong');button.classList.remove('is-wrong');void button.offsetWidth;button.classList.add('is-wrong');showRoomPenalty(dialog,correct,button.querySelector('.room-decoy-icon').textContent);
   }

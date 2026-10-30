@@ -64,7 +64,7 @@ function settleInactivityPenalty(state=readActivity()){
  const percent=receipt.percent??10;
  if(![10,20].includes(percent)||![receipt.at,receipt.before,receipt.after,receipt.amount].every(activityTimestamp)||receipt.amount!==Math.floor(receipt.before/(percent===20?5:10))||receipt.after!==receipt.before-receipt.amount)throw new Error('Invalid inactivity receipt');
  const current=readActivityBalance();
- if(current===receipt.before)localStorage.setItem(COIN_STORAGE_KEY,String(receipt.after));
+ if(current===receipt.before){localStorage.setItem(COIN_STORAGE_KEY,String(receipt.after));window.XimenaMonitor?.coinChange(receipt.before,receipt.after,'inactivity',receipt.id);}
  // Later rewards/purchases must never be overwritten by an old receipt.
  state.lastPenaltyAt=receipt.at;
  if(!state.penalties.some(item=>item.id===receipt.id))state.penalties.push(receipt);

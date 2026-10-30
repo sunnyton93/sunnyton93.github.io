@@ -75,6 +75,7 @@ function beginPlatforms(){
  if(screen!=='adventure'||round?.mode!=='platforms'||round.platformStarted||round.done)return;
  if(!ensureGameWordIcons(round,beginPlatforms))return;
  round.platformStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
+ window.XimenaMonitor?.startRound(round);
  round.platform=SaltaPhysics.create(platformCenters);
  clearPlatformControls();preparePlatforms(round,true);
  startGameClock();SoundWorld.play('ready');

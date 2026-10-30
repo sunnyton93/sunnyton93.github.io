@@ -366,7 +366,7 @@ function settleMarineReceipt(state){
  if(receipt.effect!==undefined&&!MARINE_REWARD_COUNTS.some(reward=>reward.effect===receipt.effect))throw new Error('Invalid receipt effect');
  if(receipt.roundStartedAt!==undefined&&receipt.roundStartedAt!==state.roundStartedAt)throw new Error('Invalid receipt round');
  const current=Number(localStorage.getItem(COIN_STORAGE_KEY)||0);
- if(current===receipt.before)localStorage.setItem(COIN_STORAGE_KEY,String(receipt.after));
+ if(current===receipt.before){localStorage.setItem(COIN_STORAGE_KEY,String(receipt.after));window.XimenaMonitor?.coinChange(receipt.before,receipt.after,`marine:${receipt.id}`,`${receipt.roundStartedAt??0}:${receipt.id}:${receipt.at}`);}
  if(receipt.after>receipt.before&&!recordActivityReward({coins:receipt.after-receipt.before,at:receipt.at,source:`marine:${receipt.id}`,id:`${receipt.roundStartedAt??0}:${receipt.id}:${receipt.at}`}))throw new Error('Reward date not saved');
  // A different balance belongs to a later game or purchase; never overwrite it.
  state.animals[receipt.id].met=true;state.animals[receipt.id].lastMetAt=receipt.at;state.animals[receipt.id].lastEffect=receipt.effect??state.animals[receipt.id].effect;delete state.pending;
@@ -404,6 +404,7 @@ function claimMarineEncounter(id){
   localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));
   try{localStorage.setItem(COIN_STORAGE_KEY,String(after));}
   catch(error){delete state.pending;localStorage.setItem(MARINE_SAVE_KEY,JSON.stringify(state));throw error;}
+  window.XimenaMonitor?.coinChange(before,after,`marine:${id}`,`${state.roundStartedAt??0}:${id}:${now}`);
   // If only this final write fails, the durable receipt still prevents a second debit.
   try{settleMarineReceipt(state);}catch{}
   coinBalance=after;syncCoinHud();return {repeat:false,effect:entry.effect,delta:after-before};

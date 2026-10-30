@@ -110,14 +110,18 @@ function awardCoins(amount,source='game'){
  // Stamp the earned reward before its balance write, so an interrupted reload
  // cannot persist new coins with an old inactivity deadline.
  let saved=recordActivityReward({coins:coinBalance-before,source});
- try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;}
+ let balanceSaved=true;
+ try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;balanceSaved=false;}
+ if(balanceSaved)window.XimenaMonitor?.coinChange(before,coinBalance,source);
  syncCoinHud();return saved;
 }
-function spendCoins(amount){
+function spendCoins(amount,source='spend'){
  if(!Number.isSafeInteger(amount)||amount<=0)return true;
  try{prepareActivityCoinChange();}catch{return false;}
- coinBalance=Math.max(0,readCoinBalance()-amount);
+ const before=readCoinBalance();
+ coinBalance=Math.max(0,before-amount);
  let saved=true;try{localStorage.setItem(COIN_STORAGE_KEY,String(coinBalance));}catch{saved=false;}
+ if(saved)window.XimenaMonitor?.coinChange(before,coinBalance,source);
  syncCoinHud();return saved;
 }
 function syncCoinHud(){const shown=typeof inactivityDisplayBalance==='function'?inactivityDisplayBalance():coinBalance,value=shown.toLocaleString('es-MX');document.querySelectorAll('.hud-coins b,[data-coin-balance],[data-inactivity-balance]').forEach(el=>{if(el.textContent!==value)el.textContent=value;});}
@@ -330,6 +334,7 @@ function beginArchery(){
  if(screen!=='adventure'||round?.mode!=='archery'||round.archeryStarted||round.done)return;
  if(!ensureGameWordIcons(round,beginArchery))return;
  round.archeryStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
+ window.XimenaMonitor?.startRound(round);
  round.balloons=archeryOptions(round);resetArcheryWindow(round);
  startGameClock();
  SoundWorld.play('ready');render();document.querySelector('[data-archery-bow]')?.focus({preventScroll:true});
@@ -623,6 +628,7 @@ function startAdventure(index,mode=null,developerAccess=false){
  adventure.memoryReplay=mode==='memory'&&memoryBonusCompleted(index);
  adventure.startedAt=performance.now();adventure.pausedMs=0;adventure.pausedAt=document.hidden?adventure.startedAt:null;
  if(mode==='order'){adventure.wordOrder=WordOrder.create(islandLessons[index].words);adventure.target=adventure.wordOrder.chosen.length;}
+ if(!['archery','platforms','pirate','blaster'].includes(mode))window.XimenaMonitor?.startRound(adventure);
  if(mode==='archery'){adventure.archeryStarted=false;return;}
  if(mode==='platforms'){adventure.platformStarted=false;return;}
  if(mode==='pirate'){adventure.pirateStarted=false;return;}
@@ -642,7 +648,7 @@ function finishAdventure(){
  const earnsCoins=a.earnsCoins;
  a.coins=earnsCoins?reward*a.coinMultiplier:0;
  a.coinsSaved=a.coins>0?awardCoins(a.coins,`game:${a.index}-${a.mode}`):true;
- if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];SoundWorld.play('win');return;}
+ if(a.mode==='memory'){a.done=true;a.stars=0;a.newlyUnlocked=[];window.XimenaMonitor?.finishRound(a);SoundWorld.play('win');return;}
  // Preserve improvements already saved by another open window.
  try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
  const previousStars=totalStars(),previousCollectedStars=previousStars+totalRedStars();
@@ -654,8 +660,10 @@ function finishAdventure(){
  try{localStorage.setItem('ximena-islands-v1',JSON.stringify(islandProgress));}catch{progressSaved=false;}
  SoundWorld.play(a.newlyUnlocked.length?'treasure':'win');
  a.islandCompleted=a.mode===lastGameMode(a.index)&&islandComplete(a.index);a.justCompletedIsland=!wasComplete&&a.islandCompleted;
+ window.XimenaMonitor?.finishRound(a);
 }
 function cancelGameTurn(){
+ if(adventure&&!adventure.done)window.XimenaMonitor?.finishRound(adventure,'abandoned');
  clearWordOrderFeedback();
  clearWordOrderDrag();
  closeMemoryLoss();
@@ -677,7 +685,7 @@ function scheduleGameTurn(round){
   gameTurnTimer=null;
   if(adventure!==round||screen!=='adventure'||!round.pending)return;
   if(round.mode==='memory'&&round.memoryExhausted){
-   round.memoryLossOpen=true;render();SoundWorld.play('lose');
+   round.memoryLossOpen=true;window.XimenaMonitor?.finishRound(round,'lost');render();SoundWorld.play('lose');
    return;
   }
   const restoreFocus=document.activeElement===document.body||document.activeElement?.dataset.play===round.mode;
@@ -874,6 +882,7 @@ function beginPirate(){
  if(screen!=='adventure'||round?.mode!=='pirate'||round.pirateStarted||round.done)return;
  if(!ensureGameWordIcons(round,beginPirate))return;
  round.pirateStarted=true;round.startedAt=performance.now();round.pausedMs=0;round.pausedAt=document.hidden?round.startedAt:null;
+ window.XimenaMonitor?.startRound(round);
  preparePirateRound(round);startGameClock();
  document.querySelector('.pirate-game')?.focus({preventScroll:true});
 }
@@ -979,13 +988,14 @@ function blasterView(round){return `<iframe class="blaster-frame" data-play="bla
 window.addEventListener('message',event=>{
  const a=adventure,frame=document.querySelector('.blaster-frame'),data=event.data;
  if(screen!=='adventure'||a?.mode!=='blaster'||a.done||event.source!==frame?.contentWindow||event.origin!==location.origin||data?.game!=='blaster'||data.session!==a.blasterSession)return;
+ if(data.type==='activity'){window.XimenaMonitor?.interaction();return;}
  if(data.type==='ready'){frame.contentWindow.postMessage({type:'configure',words:islandLessons[a.index].words},location.origin);frame.contentWindow.postMessage({type:'host-pause',paused:Boolean(document.querySelector('.inactivity-dialog[open]'))},location.origin);return;}
  if(data.type==='exit'){SoundWorld.play('close');screen='map';render();return;}
- if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('ready');return;}
+ if(data.type==='start'){a.blasterStarted=true;a.blasterRunning=true;a.blasterLives=3;a.step=0;a.mistakes=0;a.startedAt=performance.now();a.pausedMs=0;a.pausedAt=document.hidden?a.startedAt:null;window.XimenaMonitor?.startRound(a);frame.scrollIntoView({block:'center',behavior:'instant'});SoundWorld.play('ready');return;}
  if(!a.blasterRunning||document.hidden)return;
  if(data.type==='sound'){if(['blaster-laser','blaster-explosion','blaster-crash','wrong'].includes(data.sound))SoundWorld.play(data.sound);}
  else if(data.type==='mistake')a.mistakes++;
  else if(data.type==='progress'&&data.score===a.step+1&&data.score<=a.target)a.step=data.score;
- else if(data.type==='loss'){a.blasterRunning=false;a.pausedAt=performance.now();}
+ else if(data.type==='loss'){a.blasterRunning=false;a.pausedAt=performance.now();window.XimenaMonitor?.finishRound(a,'lost');}
  else if(data.type==='win'&&a.step===a.target&&Number.isInteger(data.lives)&&data.lives>=1&&data.lives<=3){a.blasterLives=data.lives;a.blasterRunning=false;finishAdventure();render();}
 });

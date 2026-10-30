@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#143f46">
+ <title>Bitácora · Islas de Ximena</title>
+ <link rel="icon" href="/icons/island.svg" type="image/svg+xml">
+ <link rel="stylesheet" href="/monitor.css">
+ <script src="/monitor-config.js" defer></script><script src="/monitor-dashboard.js" type="module"></script>
+</head>
+<body>
+ <div class="shell">
+  <header class="top"><a class="brand" href="/monitor.html"><span class="brand-icon">✦</span><span>Islas de Ximena<small>BITÁCORA DE AVENTURAS</small></span></a><div class="account"><span id="account-name"></span><button id="logout" class="quiet" hidden>Salir</button></div></header>
+  <main>
+   <section id="login" class="login-card"><span class="eyebrow">TU ESPACIO PRIVADO</span><h1>Su aventura,<br>de un vistazo.</h1><p>Consulta el tiempo de juego, el progreso y cada movimiento de monedas.</p><button id="google-login" class="primary">Entrar con Google <span>↗</span></button><p id="login-message" role="status">Preparando el acceso…</p></section>
+   <div id="dashboard" hidden>
+    <section class="heading"><div><span class="eyebrow">EL VIAJE DE XIMENA</span><h1>Así va su aventura.</h1><p id="updated" role="status">Esperando la primera conexión del iPad.</p></div><div class="heading-tools"><label>Dispositivo<select id="device-select" aria-label="Dispositivo"></select></label><button id="export" class="secondary">Descargar historial ↓</button></div></section>
+    <section id="pending-devices" class="pending" hidden></section>
+    <section class="presence-card"><div><span id="presence" class="status-pill unknown">Sin información</span><h2 id="current-game">Esperando su próxima aventura</h2><p id="presence-detail">La conexión no mide la atención: el tiempo activo se estima mediante interacciones.</p></div><div class="coin-balance"><span>SALDO ACTUAL</span><strong id="coin-balance">—</strong><small>monedas</small></div></section>
+    <section class="metrics" aria-label="Tiempo de juego"><article><span>HOY · TIEMPO DENTRO</span><strong id="today-total">—</strong><small id="today-breakdown">Activo e inactivo</small></article><article><span>ÚLTIMOS 7 DÍAS</span><strong id="week-total">—</strong><small id="week-breakdown">Activo e inactivo</small></article><article><span>DESDE EL MONITOREO</span><strong id="all-total">—</strong><small id="all-breakdown">Activo e inactivo</small></article><article><span>PROGRESO ACTUAL</span><strong id="total-stars">—</strong><small id="progress-detail">Estrellas y juegos completados</small></article></section>
+    <div class="two-columns"><section class="card"><div class="card-title"><h2>El ritmo de la semana</h2><span class="legend"><i></i> Activo <i></i> Inactivo</span></div><div id="daily-chart" class="chart" aria-label="Tiempo por día"></div><p class="footnote">Días y horarios de Hermosillo. Los intervalos sin señal no se consideran actividad confirmada.</p></section><section class="card"><div class="card-title"><h2>Lo que ha logrado</h2><span>Desde el monitoreo</span></div><dl id="achievements" class="achievements"></dl><p class="footnote">Los aciertos y errores se muestran por juego: una pareja, una caída y una respuesta no son medidas equivalentes.</p></section></div>
+    <section class="card"><div class="card-title"><h2>Sesiones recientes</h2><span>Últimas 30</span></div><div class="table-scroll"><table><thead><tr><th>Inicio</th><th>Fin</th><th>Dentro</th><th>Activo</th><th>Inactivo</th></tr></thead><tbody id="sessions"></tbody></table></div></section>
+    <section class="card"><div class="card-title"><h2>Desempeño por juego</h2><span>Desde el monitoreo</span></div><div class="table-scroll"><table><thead><tr><th>Juego</th><th>Completadas</th><th>Aciertos</th><th>Errores</th><th>Mejor tiempo</th></tr></thead><tbody id="performance"></tbody></table></div></section>
+    <section class="card"><div class="card-title"><h2>Partidas recientes</h2><span>Últimas 50</span></div><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Isla / juego</th><th>Resultado</th><th>Aciertos</th><th>Errores</th><th>Tiempo</th></tr></thead><tbody id="rounds"></tbody></table></div></section>
+    <section class="card"><div class="card-title"><h2>Movimientos de monedas</h2><span id="coin-summary"></span></div><div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Motivo</th><th>Movimiento</th><th>Saldo resultante</th></tr></thead><tbody id="coins"></tbody></table></div></section>
+    <section class="card backup-card"><div><h2>Su progreso, respaldado</h2><p id="backup-status">El respaldo inicial se recibirá cuando el iPad se conecte y autorices el dispositivo.</p></div><button id="download-backup" class="secondary" disabled>Descargar respaldo ↓</button></section>
+    <p class="footnote">El saldo, las estrellas y los récords anteriores se conservan como punto de partida. El historial detallado comienza con esta actualización.</p>
+   </div>
+  </main><footer>Islas de Ximena · Un registro de pequeñas grandes aventuras.</footer>
+ </div>
+</body></html>
