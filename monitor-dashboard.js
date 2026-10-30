@@ -62,7 +62,7 @@ async function selectDevice(uid){
  if(!uid||!db)return;
  const rows=await cached(uid);if(selected!==uid)return;
  rows.forEach(event=>events.set(event.id,event));render();
- const last=Math.max(0,...rows.map(e=>e.receivedAt||0));
+ const last=rows.reduce((latest,event)=>Math.max(latest,event.receivedAt||0),0);
  const path=`devices/${uid}`;
  const receive=snapshot=>{if(selected!==uid)return;const event={...snapshot.val(),id:snapshot.key};events.set(event.id,event);remember(uid,event);schedule();};
  const stream=f.query(f.ref(db,`${path}/events`),f.orderByChild('receivedAt'),f.startAt(Math.max(0,last-60000)));
