@@ -18,9 +18,46 @@ function remember(uid,event){if(!cache)return;try{cache.transaction('events','re
 function download(name,value){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 let renderTimer;
 function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(render,100);}
+function bars(rows){
+ const max=rows.reduce((value,row)=>Math.max(value,row.total),1);
+ return rows.map(row=>`<div class="chart-row"><div class="chart-label">${esc(row.label)}${row.detail?`<small>${esc(row.detail)}</small>`:''}</div><div class="chart-track" role="img" aria-label="${esc(row.description)}" title="${esc(row.description)}">${row.parts.filter(part=>part.value>0).map(part=>`<span class="chart-segment ${part.kind}" style="width:${part.value/max*100}%" aria-hidden="true">${part.value/max>=.12?number(part.value):''}</span>`).join('')}</div><span class="chart-count">${number(row.total)}</span></div>`).join('');
+}
+function renderPerformance(rounds){
+ const select=$('performance-island'),previous=select.value;
+ const islands=[...new Set(rounds.map(row=>row.island).filter(index=>Number.isInteger(index)&&index>=0))].sort((a,b)=>a-b);
+ const options='<option value="">Todas las islas</option>'+islands.map(index=>`<option value="${index}">${esc(islandName(index))}</option>`).join('');
+ if(select.innerHTML!==options){select.innerHTML=options;select.value=islands.includes(Number(previous))&&previous!==''?previous:'';}
+ const filtered=select.value===''?rounds:rounds.filter(row=>row.island===Number(select.value));
+ const chartRows=[];
+ $('performance').innerHTML=Object.entries(GAME_NAMES).flatMap(([mode,name])=>{
+  const byIsland=new Map(),gameRounds=filtered.filter(row=>row.game===mode);
+  if(gameRounds.length){
+   const completed=gameRounds.filter(row=>row.outcome==='completed').length,lost=gameRounds.filter(row=>row.outcome==='lost').length,interrupted=gameRounds.length-completed-lost;
+   chartRows.push({label:name,total:gameRounds.length,description:`${name}: ${completed} completadas, ${lost} perdidas, ${interrupted} abandonadas o interrumpidas`,parts:[{kind:'completed',value:completed},{kind:'lost',value:lost},{kind:'interrupted',value:interrupted}]});
+  }
+  for(const row of gameRounds){if(!byIsland.has(row.island))byIsland.set(row.island,[]);byIsland.get(row.island).push(row);}
+  return [...byIsland.entries()].sort(([a],[b])=>a-b).map(([island,rows])=>{
+   const completed=rows.filter(r=>r.outcome==='completed');
+   return `<tr><td>${esc(islandName(island))}</td><td>${esc(name)}</td><td>${completed.length}</td><td>${number(rows.reduce((n,r)=>n+(r.correct||0),0))}</td><td>${number(rows.reduce((n,r)=>n+(r.mistakes||0),0))}</td><td>${completed.length?duration(completed.reduce((best,r)=>Math.min(best,r.durationMs),Infinity)):'—'}</td></tr>`;
+  });
+ }).join('')||empty(6,'Cada isla y tipo de juego tendrán sus propios resultados.');
+ $('performance-chart').innerHTML=chartRows.length?bars(chartRows):'<p class="chart-empty">Los resultados aparecerán cuando se reciban partidas.</p>';
+}
+function renderCoinsChart(coins){
+ const rows=coins.slice(0,100).reverse().filter(row=>Number.isFinite(row.before)&&Number.isFinite(row.after));
+ if(!rows.length){$('coins-chart').innerHTML='<p class="chart-empty">La evolución del saldo aparecerá con los primeros movimientos registrados.</p>';return;}
+ const points=[{balance:rows[0].before,label:`Antes del primer movimiento mostrado: ${number(rows[0].before)} monedas`},...rows.map(row=>({balance:row.after,label:`${date(row.at)}: ${row.delta>=0?'+':'−'}${number(Math.abs(row.delta))} monedas; saldo ${number(row.after)}`}))];
+ const maximum=points.reduce((max,point)=>Math.max(max,point.balance),1),step=10**Math.floor(Math.log10(maximum));
+ const ceiling=Math.ceil(maximum/step)*step,width=640,height=160;
+ const coords=points.map((point,index)=>({...point,x:index/(points.length-1)*width,y:height-point.balance/ceiling*height}));
+ const path=coords.map((point,index)=>index?`H${point.x}V${point.y}`:`M${point.x},${point.y}`).join(' ');
+ $('coins-chart').innerHTML=`<div class="chart-heading"><h3>Cómo cambia su saldo</h3><span>${number(rows.length)} movimientos más recientes</span></div><div class="balance-plot"><div class="balance-axis"><span>${number(ceiling)}</span><span>${number(ceiling/2)}</span><span>0</span></div><svg viewBox="-5 -6 650 172" preserveAspectRatio="none" role="img" aria-label="Evolución del saldo en orden de movimientos: de ${number(points[0].balance)} a ${number(points.at(-1).balance)} monedas"><title>Saldo después de cada movimiento registrado</title><path class="balance-grid" d="M0,0H640 M0,80H640 M0,160H640"/><path class="balance-area" d="${path}V160H0Z"/><path class="balance-line" d="${path}"/>${coords.map(point=>`<circle class="balance-point" cx="${point.x}" cy="${point.y}" r="3"><title>${esc(point.label)}</title></circle>`).join('')}</svg></div><div class="balance-dates"><span>Inicio · ${date(rows[0].at)}</span><span>Último · ${date(rows.at(-1).at)}</span></div><p class="footnote">Cada punto representa un movimiento, en orden cronológico. El saldo anterior al primer movimiento es el punto de partida.</p>`;
+}
 function renderWordPractice(){
  const result=summarizeWords([...events.values()],{game:$('word-game').value,search:$('word-search').value});
  text('word-summary',`${result.ranking.length} palabras con fallos · primeras 50`);
+ const chartRows=result.ranking.filter(row=>row.incorrect>0).slice(0,8).map(row=>({label:row.en,detail:row.es,total:row.incorrect,description:`${row.en}: ${number(row.incorrect)} respuestas incorrectas`,parts:[{kind:'incorrect',value:row.incorrect}]}));
+ $('word-chart').innerHTML=chartRows.length?bars(chartRows):'<p class="chart-empty">Todavía no hay respuestas incorrectas por palabra para esta selección.</p>';
  $('word-ranking').innerHTML=result.ranking.slice(0,50).map(row=>{
   const parts=[row.memoryErrors?`${number(row.memoryErrors)} memoria`:'',row.timeouts?`${number(row.timeouts)} tiempo`:'',row.movementErrors?`${number(row.movementErrors)} movimiento`:''].filter(Boolean).join(' · ');
   return `<tr><td class="word-label"><b>${esc(row.en)}</b><small>${esc(row.es)}</small></td><td class="negative">${number(row.incorrect)}</td><td>${number(row.correct)}</td><td title="${esc(parts)}">${number(row.otherFailures)}${parts?`<small class="word-subtext">${esc(parts)}</small>`:''}</td><td>${date(row.lastErrorAt)}</td></tr>`;
@@ -50,14 +87,8 @@ function render(){
  $('sessions').innerHTML=s.sessions.slice(0,30).map(row=>`<tr><td>${date(row.start)}</td><td>${row.end?date(row.end):`Última actividad: ${date(row.confirmedUntil)}${row.interrupted?' · cierre sin confirmar':''}`}</td><td>${duration(row.totalMs)}</td><td>${duration(row.activeMs)}</td><td>${duration(row.idleMs)}</td></tr>`).join('')||empty(5,'Las nuevas sesiones aparecerán aquí.');
  const outcomes={completed:'Completada',lost:'Perdida',abandoned:'Abandonada',interrupted:'Interrumpida'};
  $('rounds').innerHTML=s.rounds.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(islandName(row.island))} · ${esc(GAME_NAMES[row.game]||row.game)}</td><td>${esc(outcomes[row.outcome]||row.outcome)}</td><td>${number(row.correct)}</td><td>${number(row.mistakes)}</td><td>${duration(row.durationMs)}</td></tr>`).join('')||empty(6,'Las partidas se registrarán desde esta actualización.');
- $('performance').innerHTML=Object.entries(GAME_NAMES).flatMap(([mode,name])=>{
-  const byIsland=new Map();
-  for(const row of s.rounds)if(row.game===mode){if(!byIsland.has(row.island))byIsland.set(row.island,[]);byIsland.get(row.island).push(row);}
-  return [...byIsland.entries()].sort(([a],[b])=>a-b).map(([island,rows])=>{
-   const completed=rows.filter(r=>r.outcome==='completed');
-   return `<tr><td>${esc(islandName(island))}</td><td>${esc(name)}</td><td>${completed.length}</td><td>${number(rows.reduce((n,r)=>n+(r.correct||0),0))}</td><td>${number(rows.reduce((n,r)=>n+(r.mistakes||0),0))}</td><td>${completed.length?duration(completed.reduce((best,r)=>Math.min(best,r.durationMs),Infinity)):'—'}</td></tr>`;
-  });
- }).join('')||empty(6,'Cada isla y tipo de juego tendrán sus propios resultados.');
+ renderPerformance(s.rounds);
+ renderCoinsChart(s.coins);
  text('coin-summary',events.size?`+${number(s.totals.earned)} ganadas · −${number(s.totals.spent)} salidas registradas`:'Esperando movimientos del iPad');
  $('coins').innerHTML=s.coins.slice(0,100).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(sourceName(row.source))}</td><td class="${row.delta>0?'positive':'negative'}">${row.delta>0?'+':'−'}${number(Math.abs(row.delta))}</td><td>${number(row.after)}</td></tr>`).join('')||empty(4,'El saldo anterior es el punto de partida; los nuevos movimientos aparecerán aquí.');
  $('download-backup').disabled=!backup;
@@ -118,4 +149,5 @@ $('download-backup').addEventListener('click',()=>{if(backup)download('ximena-re
 $('word-game').insertAdjacentHTML('beforeend',Object.entries(GAME_NAMES).map(([key,name])=>`<option value="${key}">${esc(name)}</option>`).join(''));
 $('word-game').addEventListener('change',renderWordPractice);
 $('word-search').addEventListener('input',renderWordPractice);
+$('performance-island').addEventListener('change',render);
 setInterval(()=>{if(!$('dashboard').hidden)render();},60000);
