@@ -1,6 +1,10 @@
 import * as f from '/vendor/firebase-client.js';
 import {summarize,summarizeWords,summarizeStars,summarizeDictionary,presenceState,duration,durationPrecise,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
 const cfg=window.XimenaMonitorConfig||{},$=id=>document.getElementById(id);
+// The parent panel and Firebase's auth helper share one origin on Safari.
+// Only panel navigation moves; the installed game's origin stays unchanged.
+const movingPanel=Boolean(cfg.panelURL&&['sunnyton93.github.io',`${cfg.firebase?.projectId}.web.app`].includes(location.hostname));
+if(movingPanel)location.replace(cfg.panelURL);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=(at,seconds=false)=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}).format(new Date(at)):'—';
 const number=value=>Number(value||0).toLocaleString('es-MX');
@@ -130,13 +134,27 @@ function listDevices(){
  $('pending-devices').innerHTML=pending.length?`<h2>Un dispositivo quiere compartir su aventura</h2><p>Reconoce el iPad por su saldo y estrellas. Al autorizarlo se enviarán los registros pendientes y el respaldo.</p>${pending.map(([uid,d])=>`<div class="candidate"><span><b>${esc(d.label)}</b> · ${number(d.coins)} monedas · ${number(d.stars)} estrellas<br>Detectado: ${date(d.seenAt)}</span><button class="primary" data-approve="${esc(uid)}">Es el iPad de Ximena</button></div>`).join('')}`:'';
  schedule();
 }
-function fail(error){text('login-message',error.code==='PERMISSION_DENIED'?'Esta cuenta no tiene permiso para consultar el historial.':error.code==='auth/popup-closed-by-user'?'Se cerró el acceso. Puedes intentarlo de nuevo.':'No se pudo conectar. Revisa tu conexión y la configuración de Firebase.');$('google-login').disabled=false;}
-if(!cfg.firebase){$('google-login').disabled=true;text('login-message','El panel está preparado. Falta conectar la configuración del proyecto InglesXime.');}
+function fail(error){
+ const messages={'PERMISSION_DENIED':'Esta cuenta no tiene permiso para consultar el historial.','auth/popup-closed-by-user':'Se cerró el acceso. Puedes intentarlo de nuevo.','auth/popup-blocked':'El navegador bloqueó la ventana de acceso. Vuelve a intentarlo desde Safari.','auth/web-storage-unsupported':'El navegador no permite guardar el estado del acceso. Abre el panel directamente en Safari y vuelve a intentarlo.','auth/network-request-failed':'No se pudo conectar con Google. Revisa tu conexión y vuelve a intentarlo.','auth/unauthorized-domain':'Esta dirección no está autorizada para iniciar sesión. Abre el enlace del panel e inténtalo de nuevo.'};
+ text('login-message',messages[error?.code]||'No se pudo completar el acceso. Vuelve a intentarlo desde el enlace del panel.');$('google-login').disabled=false;
+}
+if(movingPanel){$('google-login').disabled=true;text('login-message','Abriendo el acceso al panel…');}
+else if(!cfg.firebase){$('google-login').disabled=true;text('login-message','El panel está preparado. Falta conectar la configuración del proyecto InglesXime.');}
 else{
  const app=f.initializeApp(cfg.firebase,'ximena-monitor-parent');auth=f.getAuth(app);db=f.getDatabase(app);
+ const sameAuthOrigin=location.origin===`https://${cfg.firebase.authDomain}`;
+ auth.languageCode='es';
  f.onValue(f.ref(db,'.info/connected'),snapshot=>{panelConnected=snapshot.val()===true;schedule();});
  text('login-message','Acceso reservado a tu cuenta de Google.');
- $('google-login').addEventListener('click',()=>{const provider=new f.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});f.signInWithPopup(auth,provider).catch(fail);});
+ $('google-login').addEventListener('click',()=>{
+  const provider=new f.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});
+  $('google-login').disabled=true;text('login-message','Abriendo Google para iniciar sesión…');
+  (sameAuthOrigin?f.signInWithRedirect(auth,provider):f.signInWithPopup(auth,provider)).catch(fail);
+ });
+ if(sameAuthOrigin){
+  $('google-login').disabled=true;text('login-message','Comprobando el acceso…');
+  f.getRedirectResult(auth).then(()=>{if(!auth.currentUser)text('login-message','Acceso reservado a tu cuenta de Google.');}).catch(fail).finally(()=>{$('google-login').disabled=false;});
+ }
  $('logout').addEventListener('click',()=>f.signOut(auth));
  f.onAuthStateChanged(auth,user=>{
   stops.forEach(stop=>stop());deviceStops.forEach(stop=>stop());stops=[];deviceStops=[];owner=user;events=new Map();selected='';current=presence=backup=sync=null;enrollments={};authorized={};settings={};readError='';

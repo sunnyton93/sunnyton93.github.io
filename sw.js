@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = '7bb091df0c7f.4b1e2b305ecd';
+const APP_VERSION = 'c6136a5a2a94.da1e90a2dc47';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  "/monitor-config.js","/activity-monitor.js","/monitor-cloud.js","/monitor.html","/monitor.css","/monitor-dashboard.js","/monitor-stats.mjs","/vendor/firebase-client.js",

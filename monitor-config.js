@@ -1,5 +1,6 @@
 // Public Firebase web configuration. Access is controlled by Authentication and database rules.
 window.XimenaMonitorConfig = Object.freeze({
+  "panelURL": "https://inglesxime-99e49.firebaseapp.com/monitor.html",
   "firebase": {
     "apiKey": "AIzaSyDYOShWKNkZTNQTAAf7dnKy86J_HTHhsNE",
     "authDomain": "inglesxime-99e49.firebaseapp.com",
