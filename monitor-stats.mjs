@@ -1,4 +1,7 @@
 export const GAME_NAMES={find:'Encuentra',connect:'Conecta',memory:'Memoria',archery:'Atrapa',platforms:'Salta',pirate:'Banderas',blaster:'Escribe',order:'Ordena'};
+// Same stable order as oceanIslands, including the three Spelling Bee islands.
+export const ISLAND_NAMES=['Playa Palmita','Laguna Tortuga','Faro Lucero','Jardín de Coral','Cascada Esmeralda','Volcán Dormilón','Puerto Caracol','Bahía de las Perlas','Bosque Mariposa','La Isla del Tesoro','Glaciar Brillante','Castillo del Sol','Isla Messi','Isla Canasta','Isla Melodía','Isla Ajedrez','Isla de los Perros','Piratas del Caribe','Isla Erling Haaland','Isla de la Escuela','Isla Mario Kart','Chispa Traviesa','Libro Mágico','Reloj Volador'];
+export function islandName(index){return Number.isInteger(index)&&index>=0?ISLAND_NAMES[index]||`Isla ${index+1}`:'Isla sin identificar';}
 export function dayKey(at,timeZone='America/Hermosillo'){
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(at));
  return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');

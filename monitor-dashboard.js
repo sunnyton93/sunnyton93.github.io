@@ -1,5 +1,5 @@
 import * as f from '/vendor/firebase-client.js';
-import {summarize,summarizeWords,presenceState,duration,GAME_NAMES,decode} from '/monitor-stats.mjs';
+import {summarize,summarizeWords,presenceState,duration,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
 const cfg=window.XimenaMonitorConfig||{},$=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=at=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(at)):'—';
@@ -49,11 +49,15 @@ function render(){
  $('achievements').innerHTML=[['Partidas completadas',s.totals.completed],['Partidas perdidas',s.totals.lost],['Partidas abandonadas / interrumpidas',s.totals.abandoned],['Islas visitadas',s.visited]].map(([key,val])=>`<div><dt>${esc(key)}</dt><dd>${events.size?number(val):'—'}</dd></div>`).join('');
  $('sessions').innerHTML=s.sessions.slice(0,30).map(row=>`<tr><td>${date(row.start)}</td><td>${row.end?date(row.end):`Última actividad: ${date(row.confirmedUntil)}${row.interrupted?' · cierre sin confirmar':''}`}</td><td>${duration(row.totalMs)}</td><td>${duration(row.activeMs)}</td><td>${duration(row.idleMs)}</td></tr>`).join('')||empty(5,'Las nuevas sesiones aparecerán aquí.');
  const outcomes={completed:'Completada',lost:'Perdida',abandoned:'Abandonada',interrupted:'Interrumpida'};
- $('rounds').innerHTML=s.rounds.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>Isla ${number(Number(row.island)+1)} · ${esc(GAME_NAMES[row.game]||row.game)}</td><td>${esc(outcomes[row.outcome]||row.outcome)}</td><td>${number(row.correct)}</td><td>${number(row.mistakes)}</td><td>${duration(row.durationMs)}</td></tr>`).join('')||empty(6,'Las partidas se registrarán desde esta actualización.');
+ $('rounds').innerHTML=s.rounds.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(islandName(row.island))} · ${esc(GAME_NAMES[row.game]||row.game)}</td><td>${esc(outcomes[row.outcome]||row.outcome)}</td><td>${number(row.correct)}</td><td>${number(row.mistakes)}</td><td>${duration(row.durationMs)}</td></tr>`).join('')||empty(6,'Las partidas se registrarán desde esta actualización.');
  $('performance').innerHTML=Object.entries(GAME_NAMES).flatMap(([mode,name])=>{
-  const rows=s.rounds.filter(r=>r.game===mode),completed=rows.filter(r=>r.outcome==='completed');if(!rows.length)return [];
-  return [`<tr><td>${esc(name)}</td><td>${completed.length}</td><td>${number(rows.reduce((n,r)=>n+(r.correct||0),0))}</td><td>${number(rows.reduce((n,r)=>n+(r.mistakes||0),0))}</td><td>${completed.length?duration(Math.min(...completed.map(r=>r.durationMs))):'—'}</td></tr>`];
- }).join('')||empty(5,'Cada tipo de juego tendrá sus propios resultados.');
+  const byIsland=new Map();
+  for(const row of s.rounds)if(row.game===mode){if(!byIsland.has(row.island))byIsland.set(row.island,[]);byIsland.get(row.island).push(row);}
+  return [...byIsland.entries()].sort(([a],[b])=>a-b).map(([island,rows])=>{
+   const completed=rows.filter(r=>r.outcome==='completed');
+   return `<tr><td>${esc(islandName(island))}</td><td>${esc(name)}</td><td>${completed.length}</td><td>${number(rows.reduce((n,r)=>n+(r.correct||0),0))}</td><td>${number(rows.reduce((n,r)=>n+(r.mistakes||0),0))}</td><td>${completed.length?duration(completed.reduce((best,r)=>Math.min(best,r.durationMs),Infinity)):'—'}</td></tr>`;
+  });
+ }).join('')||empty(6,'Cada isla y tipo de juego tendrán sus propios resultados.');
  text('coin-summary',events.size?`+${number(s.totals.earned)} ganadas · −${number(s.totals.spent)} salidas registradas`:'Esperando movimientos del iPad');
  $('coins').innerHTML=s.coins.slice(0,100).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(sourceName(row.source))}</td><td class="${row.delta>0?'positive':'negative'}">${row.delta>0?'+':'−'}${number(Math.abs(row.delta))}</td><td>${number(row.after)}</td></tr>`).join('')||empty(4,'El saldo anterior es el punto de partida; los nuevos movimientos aparecerán aquí.');
  $('download-backup').disabled=!backup;
