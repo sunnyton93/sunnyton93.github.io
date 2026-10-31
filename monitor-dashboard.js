@@ -1,8 +1,8 @@
 import * as f from '/vendor/firebase-client.js';
-import {summarize,summarizeWords,summarizeStars,presenceState,duration,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
+import {summarize,summarizeWords,summarizeStars,summarizeDictionary,presenceState,duration,durationPrecise,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
 const cfg=window.XimenaMonitorConfig||{},$=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const date=at=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(at)):'—';
+const date=(at,seconds=false)=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}).format(new Date(at)):'—';
 const number=value=>Number(value||0).toLocaleString('es-MX');
 const text=(id,value)=>{$(id).textContent=value;};
 const empty=(cols,message)=>`<tr><td class="empty" colspan="${cols}">${esc(message)}</td></tr>`;
@@ -65,13 +65,23 @@ function renderWordPractice(){
  const labels={incorrect:'Respuesta incorrecta',memory_miss:'Memoria',timeout:'Tiempo agotado',movement_miss:'Movimiento / caída'};
  $('word-attempts').innerHTML=result.attempts.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(row.word.en)}</td><td>${esc(GAME_NAMES[row.game])}</td><td>${esc(row.reason==='wrong_letter'?'Letra incorrecta':labels[row.outcome])}</td><td>${esc(row.answer||'—')}</td></tr>`).join('')||empty(5,'No hay errores registrados para esta selección.');
 }
+function renderDictionary(rawEvents,status){
+ const stats=summarizeDictionary(rawEvents),latestOpen=stats.visits.find(row=>!row.exitedAt&&!row.interrupted)?.visitId;
+ text('dictionary-summary',stats.visits.length?`${number(stats.visits.length)} visitas · ${durationPrecise(stats.totalMs)} registrados`:'Esperando la primera visita registrada');
+ const reasons={navigation:'Salió del diccionario',hidden:'App en segundo plano',pagehide:'Cerró o recargó el juego'};
+ $('dictionary-visits').innerHTML=stats.visits.slice(0,30).map(row=>{
+  const ongoing=row.visitId===latestOpen&&!row.exitedAt&&!row.interrupted&&presence?.sessionId===row.sessionId&&presence?.screen==='dictionary'&&['active','idle'].includes(status);
+  const state=row.exitedAt?reasons[row.reason]||'Visita terminada':ongoing?'En el diccionario · hasta la última señal':'Salida sin confirmar';
+  return `<tr><td>${date(row.enteredAt,true)}</td><td>${row.exitedAt?date(row.exitedAt,true):`—<small class="word-subtext">Última señal: ${date(row.lastConfirmedAt,true)}</small>`}</td><td>${durationPrecise(row.durationMs)}</td><td>${esc(state)}</td></tr>`;
+ }).join('')||empty(4,'Las visitas aparecerán cuando el iPad reciba esta actualización y abra el diccionario.');
+}
 function render(){
  const s=summarize([...events.values()],{timeZone:cfg.timeZone});
  const enrollment=enrollments[selected],waiting=Boolean(selected&&!current&&!presence&&!events.size);
  const status=presenceState(presence),labels={active:'Jugando · activa',idle:'App abierta · inactiva',closed:'App en segundo plano o cerrada',unknown:'Sin conexión confirmada'};
  $('presence').className=`status-pill ${status}`;text('presence',labels[status]);
  const game=GAME_NAMES[presence?.game];
- text('current-game',status==='active'||status==='idle'?(game?`${game} · Isla ${Number(presence.island)+1}`:'Explorando las islas'):'Esperando su próxima aventura');
+ text('current-game',status==='active'||status==='idle'?(presence?.screen==='dictionary'?'Revisando el diccionario':game?`${game} · Isla ${Number(presence.island)+1}`:'Explorando las islas'):'Esperando su próxima aventura');
  text('presence-detail',presence?`Última señal: ${date(presence.serverAt)}. La falta de señal no confirma que haya terminado de jugar.`:enrollment?`iPad detectado: ${date(enrollment.seenAt)}. Aún no hay una señal de juego recibida.`:'El iPad aparecerá después de abrir la versión actualizada.');
  text('updated',readError||(panelConnected===false?'Tu panel está sin conexión. Los datos mostrados pueden estar desactualizados.':current?`Progreso recibido: ${date(current.serverAt)} · actualización cada minuto`:selected?'iPad autorizado · esperando el primer envío.':'Esperando la primera conexión del iPad.'));
  const stages={presence:'señal de juego',progress:'progreso',backup:'respaldo',events:'historial'};
@@ -85,6 +95,7 @@ function render(){
  $('daily-chart').innerHTML=events.size?s.chart.map(d=>{const height=d.totalMs/max*125,active=d.totalMs?d.activeMs/d.totalMs*100:0;return `<div class="chart-day" title="${esc(d.key)}: ${duration(d.activeMs)} activo; ${duration(d.idleMs)} inactivo; ${d.completed} partidas completadas"><span class="chart-value">${duration(d.totalMs)}</span><div class="bar-wrap"><div class="bar" style="height:${height}px"><i class="bar-active" style="height:${active}%"></i><i class="bar-idle" style="height:${100-active}%"></i></div></div><small>${esc(d.key.slice(5).split('-').reverse().join('/'))}</small><small>${d.completed} partidas</small></div>`;}).join(''):'<p class="footnote">La gráfica aparecerá cuando se reciban los primeros registros del iPad.</p>';
  $('achievements').innerHTML=[['Partidas completadas',s.totals.completed],['Partidas perdidas',s.totals.lost],['Partidas abandonadas / interrumpidas',s.totals.abandoned],['Islas visitadas',s.visited]].map(([key,val])=>`<div><dt>${esc(key)}</dt><dd>${events.size?number(val):'—'}</dd></div>`).join('');
  $('sessions').innerHTML=s.sessions.slice(0,30).map(row=>`<tr><td>${date(row.start)}</td><td>${row.end?date(row.end):`Última actividad: ${date(row.confirmedUntil)}${row.interrupted?' · cierre sin confirmar':''}`}</td><td>${duration(row.totalMs)}</td><td>${duration(row.activeMs)}</td><td>${duration(row.idleMs)}</td></tr>`).join('')||empty(5,'Las nuevas sesiones aparecerán aquí.');
+ renderDictionary(s.events,status);
  const outcomes={completed:'Completada',lost:'Perdida',abandoned:'Abandonada',interrupted:'Interrumpida'};
  $('rounds').innerHTML=s.rounds.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(islandName(row.island))} · ${esc(GAME_NAMES[row.game]||row.game)}</td><td>${esc(outcomes[row.outcome]||row.outcome)}</td><td>${number(row.correct)}</td><td>${number(row.mistakes)}</td><td>${duration(row.durationMs)}</td></tr>`).join('')||empty(6,'Las partidas se registrarán desde esta actualización.');
  renderPerformance(s.rounds);

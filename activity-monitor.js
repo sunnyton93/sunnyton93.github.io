@@ -12,7 +12,7 @@
  const initialSave={};
  try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key?.startsWith('ximena-')&&!key.startsWith(PREFIX))initialSave[key]=localStorage.getItem(key);}}catch{}
  let deviceId=read(PREFIX+'device');if(!deviceId){deviceId=id();write(PREFIX+'device',deviceId);}
- let database,session=null,lastInput=Date.now(),lastTick=Date.now(),context={},round=null,cloudStatus='local';
+ let database,session=null,dictionary=null,lastInput=Date.now(),lastTick=Date.now(),context={},round=null,cloudStatus='local';
  let pending=Promise.resolve(),opening;
  const held=new Set();
  const notify=()=>window.dispatchEvent(new CustomEvent('ximena-monitor-change'));
@@ -62,6 +62,7 @@
   const activeUntil=held.size?now:lastInput+(cfg.idleMs||120000);
   const active=Math.max(0,Math.min(now,activeUntil)-from);
   if(elapsed>0){session.totalMs+=elapsed;session.activeMs+=active;session.idleMs+=elapsed-active;}
+  if(dictionary&&elapsed>0){dictionary.durationMs+=elapsed;dictionary.lastConfirmedAt=now;write(PREFIX+'dictionary',JSON.stringify(dictionary));}
   lastTick=now;
   return {from,to:now,totalMs:elapsed,activeMs:active,idleMs:elapsed-active};
  }
@@ -74,18 +75,33 @@
    const parts=intervals;intervals=[];
    record('activity',{intervals:parts,reason});
   }
-  record('checkpoint',{...context,...progress(),totalMs:session.totalMs,activeMs:session.activeMs,idleMs:session.idleMs,state:isActive()?'active':'idle',reason});
+  record('checkpoint',{...context,...progress(),totalMs:session.totalMs,activeMs:session.activeMs,idleMs:session.idleMs,state:isActive()?'active':'idle',dictionary:dictionary?{...dictionary}:null,reason});
   write(PREFIX+'checkpoint',JSON.stringify({id:session.id,at:Date.now(),totalMs:session.totalMs,activeMs:session.activeMs,idleMs:session.idleMs}));
  }
  function isActive(){return Boolean(session&&!document.hidden&&(held.size||Date.now()-lastInput<(cfg.idleMs||120000)));}
+ function startDictionary(reason){
+  if(!enabled||!session||document.hidden||dictionary||context.screen!=='dictionary')return;
+  const at=Date.now();
+  dictionary={visitId:id(),enteredAt:at,durationMs:0,lastConfirmedAt:at,sessionId:session.id};
+  write(PREFIX+'dictionary',JSON.stringify(dictionary));
+  record('dictionary_start',{...dictionary,reason},at);
+ }
+ function endDictionary(reason){
+  if(!dictionary)return;
+  const at=Date.now();
+  record('dictionary_end',{...dictionary,exitedAt:at,reason},at);
+  dictionary=null;try{localStorage.removeItem(PREFIX+'dictionary');}catch{}
+ }
  function start(){
   if(!enabled||document.hidden||session)return;
   session={id:id(),startedAt:Date.now(),totalMs:0,activeMs:0,idleMs:0};lastTick=lastInput=Date.now();intervals=[];
   record('session_start',{...context});
+  startDictionary('visible');
  }
  function end(reason){
   if(!session)return;
   checkpoint(reason);
+  endDictionary(reason);
   record('session_end',{reason,totalMs:session.totalMs,activeMs:session.activeMs,idleMs:session.idleMs});
   session=null;held.clear();try{localStorage.removeItem(PREFIX+'checkpoint');}catch{}
  }
@@ -98,7 +114,13 @@
  const api=window.XimenaMonitor={
   enabled,deviceId,standalone,testing,record,progress,interaction,checkpoint,
   ready:Promise.resolve(),
-  setContext(value){context=value||{};},
+  setContext(value){
+   const next=value||{};
+   if(enabled&&context.screen!==next.screen){
+    if(dictionary){checkpoint('dictionary_exit');endDictionary('navigation');}else sample();
+    context=next;startDictionary('navigation');
+   }else context=next;
+  },
   visitIsland(index,name){record('island_visit',{island:index,name});},
   startRound(a){if(!enabled)return;if(round)api.finishRound(round.a,'abandoned');round={id:id(),a};record('round_start',{roundId:round.id,island:a.index,game:a.mode});},
   finishRound(a,outcome='completed'){if(!enabled||!round||round.a!==a)return;record('round_end',roundData(a,outcome));round=null;},
@@ -126,6 +148,14 @@
   for(const event of spool)await persist(event);
   const interrupted=read(PREFIX+'checkpoint');
   if(interrupted){try{const old=JSON.parse(interrupted);record('session_interrupted',{previousSessionId:old.id,lastConfirmedAt:old.at,reason:'unconfirmed_close'});}catch{}}
+  const oldDictionary=read(PREFIX+'dictionary');
+  if(oldDictionary){
+   try{
+    const old=JSON.parse(oldDictionary);
+    if(typeof old.visitId==='string'&&Number.isFinite(old.enteredAt)&&Number.isFinite(old.lastConfirmedAt)&&Number.isFinite(old.durationMs))record('dictionary_interrupted',{...old,reason:'unconfirmed_close'});
+   }catch{}
+   try{localStorage.removeItem(PREFIX+'dictionary');}catch{}
+  }
   start();
  })().catch(()=>{cloudStatus='storage-error';start();notify();});
  if(!enabled)return;

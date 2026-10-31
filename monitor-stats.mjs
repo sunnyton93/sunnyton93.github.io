@@ -17,6 +17,27 @@ export function dayKey(at,timeZone='America/Hermosillo'){
  return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');
 }
 export function decode(event){try{return {...event,data:typeof event.payload==='string'?JSON.parse(event.payload):event.data||{}};}catch{return {...event,data:{}};}}
+export function summarizeDictionary(rawEvents){
+ const visits=new Map(),seen=new Set();
+ for(const raw of rawEvents){
+  if(seen.has(raw.id))continue;seen.add(raw.id);
+  if(!['dictionary_start','dictionary_end','dictionary_interrupted','checkpoint'].includes(raw.kind))continue;
+  const event=decode(raw),data=event.kind==='checkpoint'?event.data?.dictionary:event.data;
+  if(!data||typeof data.visitId!=='string'||!Number.isFinite(data.enteredAt)||data.enteredAt<=0)continue;
+  if(!visits.has(data.visitId))visits.set(data.visitId,{visitId:data.visitId,sessionId:data.sessionId||event.sessionId,enteredAt:data.enteredAt,exitedAt:null,durationMs:0,lastConfirmedAt:data.enteredAt,interrupted:false,reason:null});
+  const row=visits.get(data.visitId);if(row.enteredAt!==data.enteredAt)continue;
+  if(Number.isFinite(data.durationMs)&&data.durationMs>=0)row.durationMs=Math.max(row.durationMs,data.durationMs);
+  if(Number.isFinite(data.lastConfirmedAt)&&data.lastConfirmedAt>=row.enteredAt)row.lastConfirmedAt=Math.max(row.lastConfirmedAt,data.lastConfirmedAt);
+  if(event.kind==='dictionary_end'&&Number.isFinite(data.exitedAt)&&data.exitedAt>=row.enteredAt){row.exitedAt=data.exitedAt;row.reason=data.reason;row.interrupted=false;}
+  if(event.kind==='dictionary_interrupted'&&!row.exitedAt){row.interrupted=true;row.reason=data.reason;}
+ }
+ const rows=[...visits.values()].sort((a,b)=>b.enteredAt-a.enteredAt||a.visitId.localeCompare(b.visitId));
+ return {visits:rows,totalMs:rows.reduce((sum,row)=>sum+row.durationMs,0)};
+}
+export function durationPrecise(ms){
+ const seconds=Math.floor(Math.max(0,ms||0)/1000),hours=Math.floor(seconds/3600),minutes=Math.floor(seconds%3600/60);
+ return [hours?`${hours} h`:'',minutes?`${minutes} min`:'',`${seconds%60} s`].filter(Boolean).join(' ');
+}
 export function summarizeWords(rawEvents,{game='',search=''}={}){
  const normalize=value=>value.normalize('NFKC').replace(/[’‘]/g,"'").trim().replace(/\s+/g,' ').toLocaleLowerCase('en-US');
  const needle=normalize(search),words=new Map(),attempts=[];
