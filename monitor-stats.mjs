@@ -2,6 +2,16 @@ export const GAME_NAMES={find:'Encuentra',connect:'Conecta',memory:'Memoria',arc
 // Same stable order as oceanIslands, including the three Spelling Bee islands.
 export const ISLAND_NAMES=['Playa Palmita','Laguna Tortuga','Faro Lucero','Jardín de Coral','Cascada Esmeralda','Volcán Dormilón','Puerto Caracol','Bahía de las Perlas','Bosque Mariposa','La Isla del Tesoro','Glaciar Brillante','Castillo del Sol','Isla Messi','Isla Canasta','Isla Melodía','Isla Ajedrez','Isla de los Perros','Piratas del Caribe','Isla Erling Haaland','Isla de la Escuela','Isla Mario Kart','Chispa Traviesa','Libro Mágico','Reloj Volador'];
 export function islandName(index){return Number.isInteger(index)&&index>=0?ISLAND_NAMES[index]||`Isla ${index+1}`:'Isla sin identificar';}
+export const SPELLING_BEE_ISLAND_INDEXES=[21,22,23];
+export function summarizeStars(progress={}){
+ const totals={normal:0,red:0};
+ for(let index=0;index<ISLAND_NAMES.length;index++)for(const mode of Object.keys(GAME_NAMES)){
+  if(mode==='memory')continue;
+  const stars=progress[`${index}-${mode}`];
+  if(Number.isInteger(stars)&&stars>=0&&stars<=3)totals[SPELLING_BEE_ISLAND_INDEXES.includes(index)?'red':'normal']+=stars;
+ }
+ return totals;
+}
 export function dayKey(at,timeZone='America/Hermosillo'){
  const parts=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(at));
  return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');

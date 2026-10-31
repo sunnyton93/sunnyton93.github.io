@@ -1,5 +1,5 @@
 import * as f from '/vendor/firebase-client.js';
-import {summarize,summarizeWords,presenceState,duration,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
+import {summarize,summarizeWords,summarizeStars,presenceState,duration,GAME_NAMES,islandName,decode} from '/monitor-stats.mjs';
 const cfg=window.XimenaMonitorConfig||{},$=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=at=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(at)):'—';
@@ -42,8 +42,8 @@ function render(){
  text('sync-detail',sync?.state==='partial'?`Último intento: ${date(sync.serverAt)}. Pendiente de enviar: ${failures.join(', ')||'parte de los registros'}. Se reintentará con el juego abierto; los pendientes se conservan en el iPad.`:waiting?'La autorización ya está lista. El juego necesita estar abierto y con internet para enviar su progreso e historial. Si está cerrado, se enviarán al volver a abrirlo.':sync?`Última sincronización completa: ${date(sync.serverAt)}. Versión del juego: ${sync.appVersion}.`:selected?'Este dispositivo todavía no ha enviado un diagnóstico de sincronización.':'Autoriza el iPad cuando aparezca su solicitud.');
  text('coin-balance',current?number(current.coins):'—');
  for(const [key,value] of [['today',s.today],['week',s.week],['all',s.totals]]){text(`${key}-total`,events.size?duration(value.totalMs):'—');text(`${key}-breakdown`,events.size?`${duration(value.activeMs)} activo · ${duration(value.idleMs)} inactivo`:'Esperando registros del iPad');}
- const stars=Object.values(current?.stars||{}).reduce((sum,v)=>sum+v,0),completed=new Set([...Object.keys(current?.stars||{}),...Object.keys(current?.bestTimes||{})]);
- text('total-stars',current?`${number(stars)} ★`:'—');text('progress-detail',current?`${completed.size} juegos con progreso guardado`:'Esperando progreso del iPad');
+ const stars=summarizeStars(current?.stars||{}),completed=new Set([...Object.keys(current?.stars||{}),...Object.keys(current?.bestTimes||{})]);
+ text('total-stars',current?`${number(stars.normal)} ★`:'—');text('red-stars',current?`${number(stars.red)} ★`:'—');text('progress-detail',current?`${completed.size} juegos con progreso guardado`:'Esperando progreso del iPad');
  const max=Math.max(60000,...s.chart.map(d=>d.totalMs));
  $('daily-chart').innerHTML=events.size?s.chart.map(d=>{const height=d.totalMs/max*125,active=d.totalMs?d.activeMs/d.totalMs*100:0;return `<div class="chart-day" title="${esc(d.key)}: ${duration(d.activeMs)} activo; ${duration(d.idleMs)} inactivo; ${d.completed} partidas completadas"><span class="chart-value">${duration(d.totalMs)}</span><div class="bar-wrap"><div class="bar" style="height:${height}px"><i class="bar-active" style="height:${active}%"></i><i class="bar-idle" style="height:${100-active}%"></i></div></div><small>${esc(d.key.slice(5).split('-').reverse().join('/'))}</small><small>${d.completed} partidas</small></div>`;}).join(''):'<p class="footnote">La gráfica aparecerá cuando se reciban los primeros registros del iPad.</p>';
  $('achievements').innerHTML=[['Partidas completadas',s.totals.completed],['Partidas perdidas',s.totals.lost],['Partidas abandonadas / interrumpidas',s.totals.abandoned],['Islas visitadas',s.visited]].map(([key,val])=>`<div><dt>${esc(key)}</dt><dd>${events.size?number(val):'—'}</dd></div>`).join('');
