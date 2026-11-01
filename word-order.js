@@ -169,7 +169,7 @@ function handleWordOrder(button) {
   }, 1800);
   return;
  }
- if (action === 'order-clear') { state.slots.fill(null); state.lastHint = null; }
+ if (action === 'order-clear') { clearWordOrderDrag(); state.slots.fill(null); state.lastHint = null; }
  else if (action === 'order-tile') {
   const id = Number(button.dataset.id), source = state.slots.indexOf(id);
   const destination = source === -1 ? state.slots.indexOf(null) : null;
@@ -191,11 +191,32 @@ function clearWordOrderDrag() {
  drag.ghost?.remove(); drag.source.classList.remove('is-dragging'); drag.target?.classList.remove('is-drop-target');
  if (drag.source.hasPointerCapture?.(drag.pointerId)) drag.source.releasePointerCapture(drag.pointerId);
 }
+function suppressWordOrderPointerClick(event) {
+ // A touch action may not synthesize a click. Never consume a later tap or
+ // keyboard activation while this cleanup is still queued.
+ let timer;
+ const clear = () => {
+  document.removeEventListener('click',suppress,true);
+  document.removeEventListener('pointerdown',clear,true);
+  document.removeEventListener('keydown',clear,true);
+  clearTimeout(timer);
+ };
+ const suppress = click => {
+  const samePointer = !('pointerId' in click) || click.pointerId === event.pointerId;
+  if (click.detail !== 0 && samePointer) { click.preventDefault(); click.stopImmediatePropagation(); }
+  clear();
+ };
+ document.addEventListener('click',suppress,true);
+ document.addEventListener('pointerdown',clear,{capture:true,once:true});
+ document.addEventListener('keydown',clear,{capture:true,once:true});
+ timer=setTimeout(clear,0);
+}
+
 document.addEventListener('pointerdown', event => {
- const source = event.target.closest('.order-tile');
+ const source = event.target.closest('.order-tile,.order-clear');
  if (!source || source.disabled || event.button !== 0 || !event.isPrimary || adventure?.mode !== 'order' || adventure.done || adventure.pending || document.hidden || source.closest('[inert]')) return;
  clearWordOrderDrag();
- wordOrderDrag = {source, round:adventure, id:Number(source.dataset.id), pointerId:event.pointerId, x:event.clientX, y:event.clientY, moved:false};
+ wordOrderDrag = {source, round:adventure, action:source.dataset.play, id:Number(source.dataset.id), pointerId:event.pointerId, x:event.clientX, y:event.clientY, moved:false};
  source.setPointerCapture(event.pointerId);
 });
 document.addEventListener('pointermove', event => {
@@ -204,6 +225,7 @@ document.addEventListener('pointermove', event => {
  if (adventure !== drag.round || screen !== 'adventure') { clearWordOrderDrag(); return; }
  if (!drag.moved && Math.hypot(event.clientX-drag.x,event.clientY-drag.y) < 7) return;
  event.preventDefault();
+ if (drag.action === 'order-clear') { drag.moved = true; return; }
  if (!drag.moved) {
   drag.moved = true; drag.source.classList.add('is-dragging');
   drag.ghost = document.createElement('span'); drag.ghost.className = 'order-drag-ghost';
@@ -219,12 +241,13 @@ document.addEventListener('pointerup', event => {
  const moved = drag.moved;
  const target = document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-order-slot],[data-order-bank]');
  clearWordOrderDrag();
- if (!moved) return;
  event.preventDefault();
- // Cancel only the click synthesized by this pointerup, never a later keyboard click.
- const suppress = click => { click.preventDefault(); click.stopImmediatePropagation(); };
- document.addEventListener('click', suppress, {capture:true, once:true});
- setTimeout(()=>document.removeEventListener('click',suppress,true),0);
+ suppressWordOrderPointerClick(event);
+ if (!moved) {
+  if (adventure === drag.round && screen === 'adventure') handleWordOrder(drag.source);
+  return;
+ }
+ if (drag.action === 'order-clear') return;
  if (!target || adventure !== drag.round || screen !== 'adventure' || adventure.pending || adventure.done) return;
  const destination = target.dataset.orderSlot === undefined ? null : Number(target.dataset.orderSlot);
  if (WordOrder.move(adventure.wordOrder, drag.id, destination)) { SoundWorld.play('tap'); render(); }
