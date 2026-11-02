@@ -1226,7 +1226,8 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .order-bank{min-height:80px;background:#f5e9ce70;border:2px dashed #d6bc83;border-radius:22px}
 .order-bank-place{display:grid;place-items:center;flex:0 0 var(--order-size);width:var(--order-size);height:var(--order-size);border-radius:13px;background:#d5be8e20}
 .order-tile,.order-slot>button,.order-drag-ghost{display:grid;place-items:center;width:var(--order-size,48px);height:var(--order-size,48px);min-width:0;padding:0;border:2px solid #c99843;border-radius:12px;background:linear-gradient(#fff7dc,#ffe5a3);color:#694a20;font-family:inherit;font-size:25px;font-weight:800;line-height:1;box-shadow:0 4px 0 #d2ae6d;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.order-tile{touch-action:none;cursor:grab;transition:background .15s,box-shadow .15s}
+.order-tile,.order-slot>.order-tile{display:block;appearance:none;-webkit-appearance:none;touch-action:none;cursor:grab;transition:background .15s,box-shadow .15s}
+.order-letter{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font:inherit;color:inherit;-webkit-text-fill-color:currentColor;pointer-events:none}
 .order-tile:active{cursor:grabbing}
 .order-tile:focus-visible,.order-slot>button:focus-visible,.order-actions button:focus-visible{outline:3px solid #21677c;outline-offset:4px}
 .order-tile.is-dragging{opacity:.3}

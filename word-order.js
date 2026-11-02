@@ -121,7 +121,9 @@ function wordOrderFeedbackView(round) {
 function wordOrderView(round) {
  const state = round.wordOrder, word = state.current;
  const disabled = round.pending ? 'disabled' : '';
- const tile = id => `<button class="order-tile" data-play="order-tile" data-id="${id}" aria-label="Letra ${wordOrderEscape(state.tiles[id].letter)}. Toca para ${state.slots.includes(id)?'devolver':'colocar'}." ${disabled}>${wordOrderEscape(state.tiles[id].letter)}</button>`;
+ // Give the glyph its own box instead of an anonymous grid item inside a
+ // native button. Returned tiles are created again by the view patcher.
+ const tile = id => `<button type="button" class="order-tile" data-play="order-tile" data-id="${id}" aria-label="Letra ${wordOrderEscape(state.tiles[id].letter)}. Toca para ${state.slots.includes(id)?'devolver':'colocar'}." ${disabled}><span class="order-letter" aria-hidden="true">${wordOrderEscape(state.tiles[id].letter)}</span></button>`;
  const slots = state.layout.map(position => typeof position === 'number'
   ? `<div class="order-slot ${state.slots[position]!==null?'is-filled':''} ${state.lastHint?.position===position?'is-hinted':''}" data-order-slot="${position}">${state.slots[position]===null?`<button data-play="order-slot" data-id="${position}" aria-label="Espacio ${position+1} vacío" ${disabled}>_</button>`:tile(state.slots[position])}</div>`
   : `<span class="order-separator" aria-label="${position===' '?'Separación entre palabras':'Guion'}">${position===' '?'':wordOrderEscape(position)}</span>`).join('');
