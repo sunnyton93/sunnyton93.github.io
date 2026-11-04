@@ -202,7 +202,7 @@
         
         let lastTime = 0,animationFrame=null,hostPaused=false;
         let enemySpawnTimer = 0;
-        let enemySpawnInterval = 4500;
+        const enemySpawnInterval = 6000;
         let baseSpeed = 0.45; // A gentler pace for reading and typing
 
         // UI Elements
@@ -447,7 +447,6 @@
             lives = 3;
             level = 1;
             baseSpeed = 0.45;
-            enemySpawnInterval = 4500;
             enemies = [];
             particles = [];
             lasers = [];
@@ -545,7 +544,6 @@
                             level++;
                             levelDisplay.innerText = level;
                             baseSpeed += 0.06;
-                            enemySpawnInterval = Math.max(4000, enemySpawnInterval - 250);
                         }
                     }
                     updateHUDText();

@@ -8,6 +8,7 @@ if(movingPanel)location.replace(cfg.panelURL);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=(at,seconds=false)=>Number.isFinite(at)?new Intl.DateTimeFormat('es-MX',{timeZone:cfg.timeZone||'America/Hermosillo',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',...(seconds?{second:'2-digit'}:{})}).format(new Date(at)):'—';
 const number=value=>Number(value||0).toLocaleString('es-MX');
+const COINS_PER_PESO=30; // Same conversion used by the game's coin redemption.
 const text=(id,value)=>{$(id).textContent=value;};
 const empty=(cols,message)=>`<tr><td class="empty" colspan="${cols}">${esc(message)}</td></tr>`;
 const sourceName=source=>source?.startsWith('game:')?'Premio de partida':source?.startsWith('marine:')?'Encuentro marino':source?.startsWith('room:')?(source.endsWith(':decoy')?'Gasto en habitación':'Tesoro de habitación'):source==='inactivity'?'Visita de Mordisquitos':source==='redemption'?'Canje de monedas':'Gasto de monedas';
@@ -22,9 +23,17 @@ function remember(uid,event){if(!cache)return;try{cache.transaction('events','re
 function download(name,value){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 let renderTimer;
 function schedule(){clearTimeout(renderTimer);renderTimer=setTimeout(render,100);}
-function bars(rows){
+function bars(rows,format=number){
  const max=rows.reduce((value,row)=>Math.max(value,row.total),1);
- return rows.map(row=>`<div class="chart-row"><div class="chart-label">${esc(row.label)}${row.detail?`<small>${esc(row.detail)}</small>`:''}</div><div class="chart-track" role="img" aria-label="${esc(row.description)}" title="${esc(row.description)}">${row.parts.filter(part=>part.value>0).map(part=>`<span class="chart-segment ${part.kind}" style="width:${part.value/max*100}%" aria-hidden="true">${part.value/max>=.12?number(part.value):''}</span>`).join('')}</div><span class="chart-count">${number(row.total)}</span></div>`).join('');
+ return rows.map(row=>`<div class="chart-row"><div class="chart-label">${esc(row.label)}${row.detail?`<small>${esc(row.detail)}</small>`:''}</div><div class="chart-track" role="img" aria-label="${esc(row.description)}" title="${esc(row.description)}">${row.parts.filter(part=>part.value>0).map(part=>`<span class="chart-segment ${part.kind}" style="width:${part.value/max*100}%" aria-hidden="true">${part.value/max>=.12?format(part.value):''}</span>`).join('')}</div><span class="chart-count">${format(row.total)}</span></div>`).join('');
+}
+function renderSessions(sessions){
+ const recent=sessions.slice(0,30),totals=recent.reduce((sum,row)=>({totalMs:sum.totalMs+row.totalMs,activeMs:sum.activeMs+row.activeMs,idleMs:sum.idleMs+row.idleMs}),{totalMs:0,activeMs:0,idleMs:0});
+ text('sessions-count',recent.length?`${number(recent.length)} sesiones · últimas 30`:'Últimas 30');
+ $('sessions-summary').innerHTML=[['Tiempo dentro',totals.totalMs],['Tiempo activo',totals.activeMs],['Tiempo inactivo',totals.idleMs]].map(([label,value])=>`<div><span>${label}</span><strong>${recent.length?durationPrecise(value):'—'}</strong></div>`).join('');
+ const rows=recent.map(row=>({label:date(row.start),detail:row.end?`Fin: ${date(row.end)}`:`${row.interrupted?'Cierre sin confirmar':'Sin cierre registrado'} · última señal: ${date(row.confirmedUntil)}`,total:row.totalMs,description:`Inicio: ${date(row.start)}; ${durationPrecise(row.totalMs)} dentro; ${durationPrecise(row.activeMs)} activo; ${durationPrecise(row.idleMs)} inactivo`,parts:[{kind:'session-active',value:row.activeMs},{kind:'session-idle',value:row.idleMs}]}));
+ $('sessions-chart').innerHTML=rows.length?bars(rows,durationPrecise):'<p class="chart-empty">Las gráficas aparecerán cuando se reciban las primeras sesiones del iPad.</p>';
+ $('sessions').innerHTML=recent.map(row=>`<tr><td>${date(row.start)}</td><td>${row.end?date(row.end):`Última actividad: ${date(row.confirmedUntil)}${row.interrupted?' · cierre sin confirmar':''}`}</td><td>${durationPrecise(row.totalMs)}</td><td>${durationPrecise(row.activeMs)}</td><td>${durationPrecise(row.idleMs)}</td></tr>`).join('')||empty(5,'Las nuevas sesiones aparecerán aquí.');
 }
 function renderPerformance(rounds){
  const select=$('performance-island'),previous=select.value;
@@ -91,14 +100,16 @@ function render(){
  const stages={presence:'señal de juego',progress:'progreso',backup:'respaldo',events:'historial'};
  const failures=Object.entries(sync?.errors||{}).map(([stage,code])=>`${stages[stage]||stage} (${code})`);
  text('sync-detail',sync?.state==='partial'?`Último intento: ${date(sync.serverAt)}. Pendiente de enviar: ${failures.join(', ')||'parte de los registros'}. Se reintentará con el juego abierto; los pendientes se conservan en el iPad.`:waiting?'La autorización ya está lista. El juego necesita estar abierto y con internet para enviar su progreso e historial. Si está cerrado, se enviarán al volver a abrirlo.':sync?`Última sincronización completa: ${date(sync.serverAt)}. Versión del juego: ${sync.appVersion}.`:selected?'Este dispositivo todavía no ha enviado un diagnóstico de sincronización.':'Autoriza el iPad cuando aparezca su solicitud.');
- text('coin-balance',current?number(current.coins):'—');
+ const balance=Number.isFinite(current?.coins)?current.coins:null;
+ text('coin-balance',balance===null?'—':number(balance));
+ text('coin-cash',balance===null?'—':`${(balance/COINS_PER_PESO).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} MXN`);
  for(const [key,value] of [['today',s.today],['week',s.week],['all',s.totals]]){text(`${key}-total`,events.size?duration(value.totalMs):'—');text(`${key}-breakdown`,events.size?`${duration(value.activeMs)} activo · ${duration(value.idleMs)} inactivo`:'Esperando registros del iPad');}
  const stars=summarizeStars(current?.stars||{}),completed=new Set([...Object.keys(current?.stars||{}),...Object.keys(current?.bestTimes||{})]);
  text('total-stars',current?`${number(stars.normal)} ★`:'—');text('red-stars',current?`${number(stars.red)} ★`:'—');text('progress-detail',current?`${completed.size} juegos con progreso guardado`:'Esperando progreso del iPad');
  const max=Math.max(60000,...s.chart.map(d=>d.totalMs));
  $('daily-chart').innerHTML=events.size?s.chart.map(d=>{const height=d.totalMs/max*125,active=d.totalMs?d.activeMs/d.totalMs*100:0;return `<div class="chart-day" title="${esc(d.key)}: ${duration(d.activeMs)} activo; ${duration(d.idleMs)} inactivo; ${d.completed} partidas completadas"><span class="chart-value">${duration(d.totalMs)}</span><div class="bar-wrap"><div class="bar" style="height:${height}px"><i class="bar-active" style="height:${active}%"></i><i class="bar-idle" style="height:${100-active}%"></i></div></div><small>${esc(d.key.slice(5).split('-').reverse().join('/'))}</small><small>${d.completed} partidas</small></div>`;}).join(''):'<p class="footnote">La gráfica aparecerá cuando se reciban los primeros registros del iPad.</p>';
  $('achievements').innerHTML=[['Partidas completadas',s.totals.completed],['Partidas perdidas',s.totals.lost],['Partidas abandonadas / interrumpidas',s.totals.abandoned],['Islas visitadas',s.visited]].map(([key,val])=>`<div><dt>${esc(key)}</dt><dd>${events.size?number(val):'—'}</dd></div>`).join('');
- $('sessions').innerHTML=s.sessions.slice(0,30).map(row=>`<tr><td>${date(row.start)}</td><td>${row.end?date(row.end):`Última actividad: ${date(row.confirmedUntil)}${row.interrupted?' · cierre sin confirmar':''}`}</td><td>${duration(row.totalMs)}</td><td>${duration(row.activeMs)}</td><td>${duration(row.idleMs)}</td></tr>`).join('')||empty(5,'Las nuevas sesiones aparecerán aquí.');
+ renderSessions(s.sessions);
  renderDictionary(s.events,status);
  const outcomes={completed:'Completada',lost:'Perdida',abandoned:'Abandonada',interrupted:'Interrumpida'};
  $('rounds').innerHTML=s.rounds.slice(0,50).map(row=>`<tr><td>${date(row.at)}</td><td>${esc(islandName(row.island))} · ${esc(GAME_NAMES[row.game]||row.game)}</td><td>${esc(outcomes[row.outcome]||row.outcome)}</td><td>${number(row.correct)}</td><td>${number(row.mistakes)}</td><td>${duration(row.durationMs)}</td></tr>`).join('')||empty(6,'Las partidas se registrarán desde esta actualización.');
