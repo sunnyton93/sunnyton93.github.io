@@ -287,6 +287,10 @@
             }
         }
 
+        function isHintLetter(index,length) {
+            return index===0 || index===length-1 || (length>10 && index===Math.floor(length/2));
+        }
+
         class Enemy {
             constructor() {
                 this.radius = 40;
@@ -341,7 +345,7 @@
                 for(let i=0;i<displayWord.length;i++){
                     const character=displayWord[i];
                     if(!/[A-Z]/.test(character)){ctx.fillStyle='#c7d9e7';ctx.fillText(character,currentX+i*spacing,this.y+yOffset);continue;}
-                    const typed=letter<this.typedIndex,hint=letter===0||letter===this.word.length-1;
+                    const typed=letter<this.typedIndex,hint=isHintLetter(letter,this.word.length);
                     ctx.fillStyle=typed?'#79e4cd':hint?'#a6bbd0':'#fff';
                     ctx.fillText(typed||hint?character:'_',currentX+i*spacing,this.y+yOffset);letter++;
                 }
@@ -392,7 +396,7 @@
             let html='',letter=0;
             for(const character of wordLabels[activeEnemy.word].toUpperCase()){
                 if(!/[A-Z]/.test(character)){html+=' &nbsp; ';continue;}
-                const typed=letter<activeEnemy.typedIndex,hint=letter===0||letter===activeEnemy.word.length-1;
+                const typed=letter<activeEnemy.typedIndex,hint=isHintLetter(letter,activeEnemy.word.length);
                 html+=`<span class="${typed?'text-blue-400':hint?'text-gray-600':'text-white'}">${typed||hint?character:'_'}</span> `;letter++;
             }
             currentInputText.innerHTML = html;
