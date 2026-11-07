@@ -5,9 +5,9 @@ const SaltaPhysics=(()=>{
  const STATIC_FRICTION=.10,GROUND_FRICTION=.085,SLIDING_FRICTION=.06;
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
  function settings(completed){
-  const late=clamp(completed-7,0,4);
-  return {scale:completed<4?1:completed<8?1.245+(completed-4)*.013:1.31+late*.02,
-   drift:late?6+late*2.4:0,tilt:late?18+late*1.5:completed>=4?12:8,maxSpeed:late?21+late:24};
+  const late=clamp(completed-9,0,4);
+  return {scale:completed<6?1:completed<10?1.245+(completed-6)*.013:1.31+late*.02,
+   drift:late?6+late*2.4:0,tilt:late?18+late*1.5:completed>=6?12:8,maxSpeed:late?21+late:24};
  }
  function create(centers){
   return {x:300,y:220,z:0,height:0,vx:0,vy:0,vz:0,airborne:false,rider:0,time:0,accumulator:0,spread:1,
