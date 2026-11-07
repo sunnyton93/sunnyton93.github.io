@@ -4,7 +4,10 @@ const SaltaPhysics=(()=>{
  // Static grip defines the stable central area; sliding friction controls the glide.
  const STATIC_FRICTION=.10,GROUND_FRICTION=.085,SLIDING_FRICTION=.06;
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
- function settings(completed){
+ function settings(completed,zone){
+  // Spelling Bee keeps the opening half calm, then spreads the same physical
+  // difficulty range across its longer 31–32-answer games.
+  if(zone==='spellingbee')completed=completed<16?0:completed<22?6+(completed-16)*3/5:completed<26?10:10+Math.min(5,completed-25)*3/5;
   const late=clamp(completed-9,0,4);
   return {scale:completed<6?1:completed<10?1.245+(completed-6)*.013:1.31+late*.02,
    drift:late?6+late*2.4:0,tilt:late?18+late*1.5:completed>=6?12:8,maxSpeed:late?21+late:24};
@@ -32,8 +35,8 @@ const SaltaPhysics=(()=>{
   const state=p.floats[index],dx=x-p.centers[index][0],dy=y-p.centers[index][1];
   return -state.depth-dx*Math.sin(state.roll*DEG)-dy*(Math.sin(state.pitch*DEG)+.68*(Math.cos(state.pitch*DEG)-1));
  }
- function configure(p,completed,now,respawn){
-  p.settings=settings(completed);p.time=now;p.accumulator=0;p.fell=false;p.sliding=false;
+ function configure(p,completed,now,respawn,zone){
+  p.settings=settings(completed,zone);p.time=now;p.accumulator=0;p.fell=false;p.sliding=false;
   if(respawn){[p.x,p.y]=p.centers[0];p.vx=p.vy=0;}
   p.jumpAt=null;p.takeoffAt=null;p.airborne=false;p.vz=0;p.gapMs=0;p.z=0;
   p.rider=at(p.x,p.y,p.centers);p.height=height(p,p.rider);

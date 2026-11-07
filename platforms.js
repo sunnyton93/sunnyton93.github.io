@@ -42,12 +42,15 @@ function cancelPlatforms(){cancelAnimationFrame(platformFrame);platformFrame=nul
 function platformAt(x,y,centers=platformCenters){
  return SaltaPhysics.at(x,y,centers);
 }
-function platformWindow(round){return round.step>=8?5600:7000-Math.min(7,round.step)*2000/7;}
+function platformWindow(round){
+ if(oceanIslands[round.index]?.zone==='spellingbee')return round.step<8?7000:round.step<22?6500:round.step<30?6000:5600;
+ return round.step>=8?5600:7000-Math.min(7,round.step)*2000/7;
+}
 function preparePlatforms(round,respawn=false){
  const p=round.platform,now=elapsedGameMs(round),correct=round.order[round.attempt%round.order.length];
  platformJumpRequestedAt=null;
  // Retarget the decks; the simulation opens gaps smoothly with its passenger aboard.
- SaltaPhysics.configure(p,round.step,now,respawn);
+ SaltaPhysics.configure(p,round.step,now,respawn,oceanIslands[round.index]?.zone);
  const wordIds=islandLessons[round.index].words.map(word=>word.id),previous=p.options;
  p.options=shuffle([correct,...shuffle(wordIds.filter(id=>id!==correct)).slice(0,6)]);
  // Change the answer set as well as its positions on each new clue.
