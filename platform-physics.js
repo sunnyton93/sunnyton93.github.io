@@ -5,9 +5,9 @@ const SaltaPhysics=(()=>{
  const STATIC_FRICTION=.10,GROUND_FRICTION=.085,SLIDING_FRICTION=.06;
  const clamp=(value,low,high)=>Math.max(low,Math.min(high,value));
  function settings(completed,zone){
-  // Spelling Bee keeps the opening half calm, then spreads the same physical
+  // Spelling Bee keeps the opening stages calm, then spreads the same physical
   // difficulty range across its longer 31–32-answer games.
-  if(zone==='spellingbee')completed=completed<16?0:completed<22?6+(completed-16)*3/5:completed<26?10:10+Math.min(5,completed-25)*3/5;
+  if(zone==='spellingbee')completed=completed<14?0:completed<22?6+(completed-14)*3/7:completed<26?10:10+Math.min(5,completed-25)*3/5;
   const late=clamp(completed-9,0,4);
   return {scale:completed<6?1:completed<10?1.245+(completed-6)*.013:1.31+late*.02,
    drift:late?6+late*2.4:0,tilt:late?18+late*1.5:completed>=6?12:8,maxSpeed:late?21+late:24};
