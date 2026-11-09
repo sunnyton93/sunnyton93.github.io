@@ -304,15 +304,16 @@ function platformSharkResolve(p,s,decks){
 const PLATFORM_SHARK_DETECTION_RADIUS=240;
 const PLATFORM_SHARK_JUMP_REACH=210;
 function platformSharkDetectedPlayer(p,s){
- if(p.airborne||p.jumpAt!==null||p.fell||platformSharkCentralSafe(p))return null;
+ if(p.fell||platformSharkCentralSafe(p))return null;
  const player=platformSharkPlayer(p),head={x:(player[0].x+player[1].x)/2,y:(player[0].y+player[2].y)/2};
  return Math.hypot(head.x-s.x,head.y-s.y)<=PLATFORM_SHARK_DETECTION_RADIUS?head:null;
 }
 function platformSharkAttackPlan(p,s,decks){
- // Wait for a reachable, grounded player. A jump during the warning is a dodge.
- if(s.turnScale<.98||p.airborne||p.jumpAt!==null||p.fell||platformSharkCentralSafe(p))return null;
+ // Use the actual character pose: requesting a jump does not move it yet,
+ // and an airborne character can still be within reach of the teeth.
+ if(s.turnScale<.98||p.fell||platformSharkCentralSafe(p))return null;
  const player=platformSharkPlayer(p),head={x:(player[0].x+player[1].x)/2,y:(player[0].y+player[2].y)/2};
- const support=platformAt(p.x,p.y,p.centers),deck=support>=0?p.bodies[support]:null;
+ const support=platformAt(p.x,p.y,p.centers),deck=!p.airborne&&support>=0?p.bodies[support]:null;
  const vx=p.vx+(deck?.vx||0),vy=p.vy+(deck?.vy||0),lead=Math.min(.22,32/(Math.hypot(vx,vy*.68)||1));
  const predicted={x:head.x+vx*lead,y:head.y+vy*.68*lead};
  if(SaltaPhysics.at(p.x+vx*lead,p.y+vy*lead,[p.centers[0]])===0)return null;
@@ -361,7 +362,7 @@ function advancePlatformShark(p,now,seconds){
     SoundWorld.play('shark-warning');
    }
   }
-  if(s.mode==='windup'&&(!playing||s.time<s.graceUntil||p.airborne||p.jumpAt!==null)){
+  if(s.mode==='windup'&&(!playing||s.time<s.graceUntil)){
    s.mode='recover';s.modeAt=s.time;s.nextBite=s.time+1400;
   }
   if(s.mode==='windup'&&(s.time>=s.nextTrack||s.time-s.modeAt>=s.windup)){
