@@ -744,7 +744,7 @@ function updateAdventure(){
  document.querySelectorAll('.hud-red-stars b').forEach(el=>el.textContent=totalRedStars());
  document.querySelectorAll('.map-node.is-locked').forEach(node=>{
   const index=Number(node.dataset.island),island=oceanIslands[index];
-  if(!isIslandLocked(island)){node.classList.remove('is-locked');node.textContent=index+1;node.setAttribute('aria-label',`Jugar en ${island.name}`);}
+  if(!isIslandLocked(island)){node.classList.remove('is-locked');node.textContent=islandMapNumber(index);node.setAttribute('aria-label',`Jugar en ${island.name}`);}
  });
  document.querySelectorAll('.scenic-locked').forEach(node=>{
   const island=oceanIslands.find(item=>item.type===node.dataset.island);

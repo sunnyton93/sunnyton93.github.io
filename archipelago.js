@@ -1,4 +1,4 @@
-const OCEAN_SIZE = {width:6400,height:4400};
+const OCEAN_SIZE = {width:6400,height:6500};
 const OCEAN_MARGIN=650;
 const islandRoutePositions=[
  [[1900,650],[2800,400],[3800,800],[4950,420],[5850,1100],[5250,1800],[4100,1500],[3150,2100],[2150,1650]],
@@ -192,13 +192,18 @@ const oceanIslands = [
  {x:4240,y:1400,type:'haaland',name:'Isla Erling Haaland',color:'#90d4cf',scale:1.6},
  {x:3430,y:2070,type:'school',name:'Isla de la Escuela',color:'#e7cc91',scale:1.45},
  {x:4220,y:2200,type:'kart',name:'Isla Mario Kart',color:'#b7d994',scale:1.6}
-].map((island,index)=>{
+].map(configureOceanIsland);
+function configureOceanIsland(island,index){
  const routeIndex=islandRoutes.findIndex(route=>route.islands.includes(index));
  if(routeIndex<0)return {...island,...(index===2?{y:1100}:{}),get requiredStars(){return index*6;},routeDepth:index};
  const position=islandRoutes[routeIndex].islands.indexOf(index);
  const [x,y]=islandRoutePositions[routeIndex][position];
  return {...island,x,y,routeIndex,routeDepth:position+3,get requiredStars(){return Math.max((position+3)*6,luceroRequirement(routeIndex));}};
-});
+}
+function islandMapNumber(index){
+ const item=oceanIslands[index];
+ return item.zone==='spellingbee'?SPELLING_BEE_ISLANDS.indexOf(item)+1:oceanIslands.slice(0,index+1).filter(island=>island.zone!=='spellingbee').length;
+}
 function islandPaths(){
  return spellingBeeZonePaths()+oceanIslands.flatMap((from,index)=>nextIslands(index).map(toIndex=>{
   const to=oceanIslands[toIndex],color=to.routeIndex===undefined?'#fff3c3':islandRoutes[to.routeIndex].color;
@@ -236,7 +241,7 @@ function newIslandScenery(type){
  kart:`<ellipse cy="-6" rx="104" ry="48" fill="#827fa7" stroke="#faf0cb" stroke-width="6"/><ellipse cy="-6" rx="68" ry="24" fill="#a6d795" stroke="#f8d480" stroke-width="7"/><ellipse cy="-6" rx="90" ry="38" fill="none" stroke="#fff5ce" stroke-width="2" stroke-dasharray="9 9"/><path d="M-78-5v-76m0 0h41v28h-41" fill="#fff5d7" stroke="#5c7d75" stroke-width="4"/><path d="M-78-77h10v12h-10m20 0h10v12h-10m-20 0h10v12h-10m20-24h10v12h-10" fill="#4f5a71"/><g class="kart-racer" transform="translate(24 -7)"><rect x="-31" y="-6" width="64" height="25" rx="10" fill="#e57465" stroke="#b45d55" stroke-width="3"/><circle cx="-20" cy="18" r="9" fill="#45556a"/><circle cx="23" cy="18" r="9" fill="#45556a"/><path d="M-13-2v-16h25V0" fill="#688abe"/><circle cy="-33" r="16" fill="#f5d0a8"/><path d="M-17-38q0-23 29-14l6 16h-40" fill="#df655d"/><circle cy="-46" r="7" fill="#fff4d7"/><text y="-42" text-anchor="middle" font-size="10" font-weight="bold" fill="#d65b52">M</text><path d="M-8-28q8-7 16 0" stroke="#745544" stroke-width="5" fill="none"/></g><g class="kart-item" transform="translate(60 -88)"><rect x="-15" y="-17" width="30" height="30" rx="6" fill="#f2c963" stroke="#fff3c8" stroke-width="3"/><text y="7" text-anchor="middle" font-size="25" font-weight="bold" fill="#fff8de">?</text></g><g transform="translate(-11 -86)"><path d="M-8 1h17v18H-8z" fill="#fff3d7"/><path d="M-23 2q-1-36 24-36T25 2z" fill="#e77b73"/><circle cx="-8" cy="-13" r="7" fill="#fff4d6"/><circle cx="14" cy="-15" r="6" fill="#fff4d6"/></g>`,
 
  };
- return art[type]||'';
+ return art[type]||(typeof everydayIslandScenery==='function'?everydayIslandScenery(type):'');
 }
 // Stable, smooth coastlines: the same island keeps its silhouette on every visit.
 function islandCoast(index,type){
@@ -439,7 +444,7 @@ function syncIslandRoom(){
   dialog.insertAdjacentHTML('afterbegin',`<div class="island-room-backdrop" aria-hidden="true">${islandRoomLandscape(config[4])}<svg class="room-map-art" viewBox="-155 -180 310 250"><ellipse cy="39" rx="136" ry="38" fill="${island.color}"/>${islandScenery(island.type)}</svg><div class="room-motes">${Array.from({length:9},(_,i)=>`<i style="--mote:${i}"></i>`).join('')}</div>`);
   const strip=document.createElement('div');strip.className='island-room-strip';
   const decoy=islandRoomDecoyWords(island,config);
-  strip.innerHTML=`<svg class="room-landmark" viewBox="-150 -180 300 250" aria-hidden="true"><ellipse cy="39" rx="136" ry="35" fill="${island.color}"/>${islandScenery(island.type)}</svg><p class="room-welcome">${config[7]}<small>Toca los objetos y gana monedas</small><span class="room-coin-balance">${goldCoinIcon()} <b data-coin-balance>${coinBalance.toLocaleString('es-MX')}</b> monedas</span></p><div class="room-toys" role="group" aria-label="Objetos de ${island.name}">${config.slice(5,7).map(kind=>`<button type="button" class="room-toy" data-island-toy="${kind}" aria-label="${islandRoomToyEnglish[kind]}" aria-pressed="false">${islandRoomToyArt(kind)}<span>${islandRoomToyEnglish[kind]}</span></button>`).join('')}<button type="button" class="room-toy room-toy-decoy" data-room-decoy data-correct-word="${decoy.picture.en}" aria-label="${decoy.wrongLabel.en}"><span class="room-decoy-icon" aria-hidden="true">${decoy.picture.icon}</span><span>${decoy.wrongLabel.en}</span></button></div>`;
+  strip.innerHTML=`<svg class="room-landmark" viewBox="-150 -180 300 250" aria-hidden="true"><ellipse cy="39" rx="136" ry="35" fill="${island.color}"/>${islandScenery(island.type)}</svg><p class="room-welcome">${config[7]}<small>Toca los objetos y gana monedas</small><span class="room-coin-balance">${goldCoinIcon()} <b data-coin-balance>${coinBalance.toLocaleString('es-MX')}</b> monedas</span></p><div class="room-toys" role="group" aria-label="Objetos de ${island.name}">${config.slice(5,7).map(kind=>`<button type="button" class="room-toy" data-island-toy="${kind}" aria-label="${islandRoomToyEnglish[kind]}" aria-pressed="false">${islandRoomToyArt(kind)}<span>${islandRoomToyEnglish[kind]}</span></button>`).join('')}<button type="button" class="room-toy room-toy-decoy" data-room-decoy data-correct-word="${decoy.picture.en}" aria-label="${decoy.wrongLabel.en}"><span class="room-decoy-icon" aria-hidden="true">${wordIcon(decoy.picture)}</span><span>${decoy.wrongLabel.en}</span></button></div>`;
   // Shuffle once per island visit, keeping the cards still while playing.
   const toys=strip.querySelector('.room-toys');
   toys.replaceChildren(...shuffle([...toys.children]));

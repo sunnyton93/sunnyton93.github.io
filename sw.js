@@ -1,12 +1,12 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = 'db6a1e4fbb50.ebf50acaa134';
+const APP_VERSION = '056d39333624.78ea69793e4c';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  "/monitor-config.js","/activity-monitor.js","/monitor-cloud.js","/monitor.html","/monitor.css","/monitor-dashboard.js","/monitor-stats.mjs","/vendor/firebase-client.js",
  '/audio/dictionary-en-us.json', '/audio/dictionary-en-us.mp3',
  '/', '/style.css', '/app-shell.css', '/ocean.js', '/archipelago.js', '/sound.js',
- '/island-vocabulary.js', '/spellingbee-islands.js', '/spellingbee-art.js', '/games.js', '/word-order.js', '/archery-motion.js', '/platform-physics.js', '/platforms.js', '/app.js', '/inactivity.js', '/pwa.js',
+ '/island-vocabulary.js', '/spellingbee-islands.js', '/spellingbee-art.js', '/everyday-vocabulary.js', '/everyday-islands.js', '/games.js', '/word-order.js', '/archery-motion.js', '/platform-physics.js', '/platforms.js', '/app.js', '/inactivity.js', '/pwa.js',
  '/blaster.html', '/manifest.webmanifest', '/favicon.ico', '/icons/island.svg',
  '/icons/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png',
  '/icons/icon-maskable-512.png', '/icons/words/catalog.json'
