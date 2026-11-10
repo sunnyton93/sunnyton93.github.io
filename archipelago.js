@@ -198,7 +198,7 @@ function configureOceanIsland(island,index){
  if(routeIndex<0)return {...island,...(index===2?{y:1100}:{}),get requiredStars(){return index*6;},routeDepth:index};
  const position=islandRoutes[routeIndex].islands.indexOf(index);
  const [x,y]=islandRoutePositions[routeIndex][position];
- return {...island,x,y,routeIndex,routeDepth:position+3,get requiredStars(){return Math.max((position+3)*6,luceroRequirement(routeIndex));}};
+ return {...island,x,y,routeIndex,routeDepth:position+3,get requiredStars(){return Math.max(island.requiredStars??(position+3)*6,luceroRequirement(routeIndex));}};
 }
 function islandMapNumber(index){
  const item=oceanIslands[index];
@@ -441,7 +441,11 @@ function syncIslandRoom(){
   dialog.querySelectorAll('.island-room-backdrop,.island-room-strip').forEach(el=>el.remove());
   dialog.dataset.islandRoom=island.type;dialog.dataset.roomFamily=config[4];
   ['sky','ground','ink','accent'].forEach((name,i)=>dialog.style.setProperty(`--room-${name}`,config[i]));
-  dialog.insertAdjacentHTML('afterbegin',`<div class="island-room-backdrop" aria-hidden="true">${islandRoomLandscape(config[4])}<svg class="room-map-art" viewBox="-155 -180 310 250"><ellipse cy="39" rx="136" ry="38" fill="${island.color}"/>${islandScenery(island.type)}</svg><div class="room-motes">${Array.from({length:9},(_,i)=>`<i style="--mote:${i}"></i>`).join('')}</div>`);
+  dialog.classList.toggle('room-painted',Boolean(island.roomBackground));
+  const landscape=island.roomBackground
+   ? `<img class="room-panorama" src="${island.roomBackground}" alt="">`
+   : `${islandRoomLandscape(config[4])}<svg class="room-map-art" viewBox="-155 -180 310 250"><ellipse cy="39" rx="136" ry="38" fill="${island.color}"/>${islandScenery(island.type)}</svg>`;
+  dialog.insertAdjacentHTML('afterbegin',`<div class="island-room-backdrop" aria-hidden="true">${landscape}<div class="room-motes">${Array.from({length:9},(_,i)=>`<i style="--mote:${i}"></i>`).join('')}</div></div>`);
   const strip=document.createElement('div');strip.className='island-room-strip';
   const decoy=islandRoomDecoyWords(island,config);
   strip.innerHTML=`<svg class="room-landmark" viewBox="-150 -180 300 250" aria-hidden="true"><ellipse cy="39" rx="136" ry="35" fill="${island.color}"/>${islandScenery(island.type)}</svg><p class="room-welcome">${config[7]}<small>Toca los objetos y gana monedas</small><span class="room-coin-balance">${goldCoinIcon()} <b data-coin-balance>${coinBalance.toLocaleString('es-MX')}</b> monedas</span></p><div class="room-toys" role="group" aria-label="Objetos de ${island.name}">${config.slice(5,7).map(kind=>`<button type="button" class="room-toy" data-island-toy="${kind}" aria-label="${islandRoomToyEnglish[kind]}" aria-pressed="false">${islandRoomToyArt(kind)}<span>${islandRoomToyEnglish[kind]}</span></button>`).join('')}<button type="button" class="room-toy room-toy-decoy" data-room-decoy data-correct-word="${decoy.picture.en}" aria-label="${decoy.wrongLabel.en}"><span class="room-decoy-icon" aria-hidden="true">${wordIcon(decoy.picture)}</span><span>${decoy.wrongLabel.en}</span></button></div>`;

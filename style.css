@@ -377,6 +377,14 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .screen-overlay[data-island-room]{isolation:isolate;background:linear-gradient(160deg,var(--room-sky),#fffaf0 75%);color:var(--room-ink)}
 .island-room-backdrop{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 90% 10%,#fff8d680,transparent 55%)}
 .room-landscape{width:100%;height:100%;position:absolute;inset:0}.room-map-art{position:absolute;width:clamp(240px,29vw,470px);height:auto;bottom:-20px;right:-30px;opacity:.45;filter:saturate(.75)}
+.room-panorama{display:block;width:100%;height:100%;object-fit:cover}
+.room-painted .island-room-backdrop::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,#fff8e77a,transparent 66%)}
+.room-painted>header>div:first-child,.room-painted .room-welcome{background:#fffbefed;border-radius:12px;padding:5px 12px;box-shadow:0 2px 8px #36302516}
+.room-painted .room-welcome{padding:8px 12px}
+.room-painted>header .eyebrow{color:var(--room-ink)}
+.screen-overlay.room-painted[data-island-room]>.island-game{background:#fffaf0ed}
+.room-painted .find-grid .lesson-icon{font-size:clamp(42px,5vw,60px)}
+@media(max-width:700px){.room-painted>header>div:first-child,.room-painted .room-welcome{padding:4px 6px}}
 .screen-overlay[data-island-room]>.island-game{padding:14px clamp(10px,1.4vw,22px) 20px;background:#fffdf3cf;border:1px solid #ffffffa0;border-radius:24px;box-shadow:0 8px 28px #294f4810;backdrop-filter:blur(3px)}
 .screen-overlay[data-island-room]>header{margin-bottom:0;min-height:58px}.screen-overlay[data-island-room]>header h1{color:var(--room-ink)}
 .screen-overlay[data-island-room] .lesson-modes button{background:color-mix(in srgb,var(--room-ground) 28%,#fffdf4);border-color:color-mix(in srgb,var(--room-accent) 32%,#fffdf4);color:var(--room-ink)}

@@ -1,6 +1,6 @@
 const gameModes = {find:'Encuentra',connect:'Conecta',memory:'Memoria',archery:'Atrapa',platforms:'Salta',pirate:'Banderas',blaster:'Escribe',order:'Ordena'};
 // Enable the same reusable game in more zones or individual islands here.
-const EXTRA_ISLAND_GAMES={order:{zones:['spellingbee'],islands:[]}};
+const EXTRA_ISLAND_GAMES={order:{zones:['spellingbee','everyday'],islands:[]}};
 function extraIslandModes(index){return Object.entries(EXTRA_ISLAND_GAMES).filter(([,rule])=>rule.zones.includes(oceanIslands[index]?.zone)||rule.islands.includes(index)).map(([mode])=>mode);}
 const ISLAND_LINEUP_KEY='ximena-island-games-v2';
 const REQUIRED_ISLAND_GAMES=['find','connect'];
@@ -148,9 +148,10 @@ function readRedStarPreviousAccess(){
  const key='ximena-red-star-access-v1';
  try{
   const raw=localStorage.getItem(key);
-  if(raw!==null){const saved=JSON.parse(raw);return Array.isArray(saved)?saved.filter(index=>Number.isInteger(index)&&oceanIslands[index]):[];}
+  const eligible=index=>oceanIslands[index]&&oceanIslands[index].zone!=='everyday';
+  if(raw!==null){const saved=JSON.parse(raw);return Array.isArray(saved)?saved.filter(index=>Number.isInteger(index)&&eligible(index)):[];}
   const normal=totalStars(),previous=normal+totalRedStars();
-  const access=oceanIslands.flatMap((island,index)=>!luceroRouteClosed(island)&&(island.requiredStars||0)>normal&&(island.requiredStars||0)<=previous?[index]:[]);
+  const access=oceanIslands.flatMap((island,index)=>eligible(index)&&!luceroRouteClosed(island)&&(island.requiredStars||0)>normal&&(island.requiredStars||0)<=previous?[index]:[]);
   localStorage.setItem(key,JSON.stringify(access));return access;
  }catch{return [];}
 }
@@ -197,11 +198,17 @@ function modeStars(index,mode){
 }
 // Temporary development setup: set both flags to false to restore normal access.
 const islandDevSettings={lockAll:false,rightClickEntry:true};
-function isIslandLocked(island,stars=totalStars()){return (islandDevSettings.lockAll&&island!==oceanIslands[0])||luceroRouteClosed(island)||(stars<(island.requiredStars||0)&&!redStarPreviousAccess.includes(oceanIslands.indexOf(island)));}
+function previousIslandNeedsStars(island){
+ const previous=island.previousIslandForStars;
+ return previous!==undefined&&progressionModes(previous).some(mode=>(islandProgress[`${previous}-${mode}`]||0)<3);
+}
+function isIslandLocked(island,stars=totalStars()){return (islandDevSettings.lockAll&&island!==oceanIslands[0])||luceroRouteClosed(island)||previousIslandNeedsStars(island)||(stars<(island.requiredStars||0)&&!redStarPreviousAccess.includes(oceanIslands.indexOf(island)));}
 function lockedIslandView(){
- const island=oceanIslands[lockedIslandIndex],required=island.requiredStars||0,stars=totalStars();
+ const island=oceanIslands[lockedIslandIndex],required=island.requiredStars||0,stars=totalStars(),previous=island.previousIslandForStars;
+ const needsPrevious=previousIslandNeedsStars(island);
+ const previousRequirement=previous===undefined?'':`<p>Consigue las ${starsPerIsland(previous)} estrellas de ${oceanIslands[previous].name}: 3 estrellas en cada juego principal.</p><div class="unlock-progress"><progress max="${starsPerIsland(previous)}" value="${islandStars(previous)}" aria-label="Estrellas de la isla anterior"></progress><b>★ ${islandStars(previous)} / ${starsPerIsland(previous)}</b></div>`;
  if(islandDevSettings.lockAll)return `${header(island.name,'ISLA BLOQUEADA')}<section class="locked-island-panel"><div class="island-lock" aria-hidden="true">🔒</div><h2>Esta isla está bloqueada</h2><button class="primary" data-action="map">Volver a las islas →</button></section>`;
- return `${header(island.name,'ISLA BLOQUEADA')}<section class="locked-island-panel"><div class="island-lock" aria-hidden="true">🔒</div><h2>¡Reúne ${required} estrellas!</h2><p>Te faltan ${Math.max(0,required-stars)} estrellas para abrir esta isla.</p><div class="unlock-progress"><progress max="${required}" value="${Math.min(stars,required)}" aria-label="Estrellas para desbloquear"></progress><b>★ ${stars} / ${required}</b></div><button class="primary" data-action="map">Volver a las islas →</button></section>`;
+ return `${header(island.name,'ISLA BLOQUEADA')}<section class="locked-island-panel"><div class="island-lock" aria-hidden="true">🔒</div><h2>${needsPrevious?'¡Consigue todas las estrellas de la isla anterior!':`¡Reúne ${required} estrellas!`}</h2>${previousRequirement}<p>${stars<required?`Te faltan ${required-stars} estrellas normales para alcanzar el requisito total.`:'Ya tienes las estrellas normales requeridas.'}</p><div class="unlock-progress"><progress max="${required}" value="${Math.min(stars,required)}" aria-label="Estrellas para desbloquear"></progress><b>★ ${stars} / ${required}</b></div><button class="primary" data-action="map">Volver a las islas →</button></section>`;
 }
 function resultActions(){
  const destinations=nextIslands(adventure.index),completed=adventure.mode===lastGameMode(adventure.index)&&islandComplete(adventure.index);
@@ -347,7 +354,7 @@ function archeryBalloonScale(completedRounds){
 function archeryOptions(round){
  const correct=round.order[round.attempt%round.order.length];
  const wordIds=islandLessons[round.index].words.map(word=>word.id);
- const distractors=round.step>=8?5:3;
+ const distractors=round.step>=10?7:round.step>=8?5:3;
  const options=shuffle([correct,...shuffle(wordIds.filter(id=>id!==correct)).slice(0,distractors)]);
  if(round.balloons&&options.every(id=>round.balloons.includes(id))){
   const fresh=wordIds.find(id=>!round.balloons.includes(id));
@@ -516,7 +523,7 @@ document.addEventListener('click',event=>{
 function archeryView(round,lesson){
  if(!round.archeryStarted)return `<div class="archery-intro"><div class="archery-intro-art" aria-hidden="true">🏹 <span>🎈</span></div><h2>¡Apunta y atrapa la palabra!</h2><button class="primary archery-start" data-play="archery-start">Iniciar <span aria-hidden="true">➜</span></button></div>`;
  const word=lesson.words[round.order[round.attempt%round.order.length]];
- return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${wordIcon(word)}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4','#9cccf3','#f5b987'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
+ return `<div class="archery-game"><div class="archery-field ${round.pending?'is-shooting':''}"><div class="scene-clue archery-prompt"><span class="archery-clue" aria-hidden="true">${wordIcon(word)}</span><h2>${word.es}</h2><span class="scene-score archery-round" aria-label="${round.step} aciertos de ${round.target}">★ ${round.step}/${round.target}</span></div><div class="archery-countdown" style="--time-left:1" aria-label="Tiempo para este tiro"><span>◷</span><b>${round.pending?'En vuelo':`${(Math.max(0,round.archeryDeadline-elapsedGameMs(round))/1000).toFixed(1)} s`}</b><i></i></div><div class="archery-cloud archery-cloud-one"></div><div class="archery-cloud archery-cloud-two"></div><div class="archery-targets">${round.balloons.map((id,slot)=>`<div class="word-balloon" role="img" data-id="${id}" style="--balloon-color:${['#f7c872','#8cdbcd','#b9b4ed','#f3a9b4','#9cccf3','#f5b987','#b9de92','#e8a6df'][slot]};--float-delay:${slot*-.7}s" aria-label="Globo: ${lesson.words[id].en}"><span class="balloon-envelope"><span class="balloon-body"><b>${lesson.words[id].en}</b><span class="balloon-shine" aria-hidden="true"></span></span></span><span class="balloon-string" aria-hidden="true"></span><span class="balloon-burst" aria-hidden="true">✦</span></div>`).join('')}</div><svg class="archery-aim-guide" aria-hidden="true"><path/></svg><span class="archery-reticle" aria-hidden="true"></span><div class="archery-particles" aria-hidden="true"></div><svg class="archery-flight" aria-hidden="true"><path class="archery-trail"/><g class="archery-arrow"><path d="M-92 0H0" stroke="#765134" stroke-width="5"/><path d="M0 0-16-8-12 0-16 8Z" fill="#5b8392"/><path d="M-68 0-82-10H-96L-82 0-96 10H-82Z" fill="#fff5d4" stroke="#bc9356" stroke-width="2"/></g></svg><button type="button" class="archery-bow" data-archery-bow aria-label="Arrastra el arco hacia un globo y suelta para disparar." ${round.pending?'disabled':''}><svg viewBox="0 0 150 95" aria-hidden="true"><ellipse cx="75" cy="80" rx="63" ry="8" fill="#326e6a20"/><path class="bow-wood" d="M18 58Q75-25 132 58" fill="none" stroke="#97603c" stroke-width="9" stroke-linecap="round"/><path d="M20 57Q75-17 130 57" fill="none" stroke="#e3b46c" stroke-width="3"/><path class="bow-string" d="M18 58 75 70 132 58" fill="none" stroke="#fef5d0" stroke-width="3"/><path d="M75 75V17m0 0-7 12m7-12 7 12" fill="none" stroke="#7a5839" stroke-width="3"/></svg><span class="bow-grip" aria-hidden="true">⦿</span></button><div class="archery-feedback" role="status" aria-live="polite"></div></div></div>`;
 }
 function paintArcheryShot(impact=false){
  const shot=archeryShot;if(!shot||adventure!==shot.round)return;
@@ -654,9 +661,10 @@ function finishAdventure(){
  // Preserve improvements already saved by another open window.
  try{for(const [key,value] of Object.entries(JSON.parse(localStorage.getItem('ximena-islands-v1')||'{}')))if(/^\d+-(find|connect|archery|platforms|pirate|blaster|order)$/.test(key)&&Number.isInteger(value)&&value>=1&&value<=3)islandProgress[key]=Math.max(islandProgress[key]||0,value);}catch{}
  const previousStars=totalStars(),previousCollectedStars=previousStars+totalRedStars();
+ const previouslyLocked=oceanIslands.map(island=>isIslandLocked(island,previousStars));
  a.done=true;a.stars=a.mode==='order'?WordOrder.stars(a.wordOrder.hintsUsed,a.wordOrder.mistakes):a.mode==='blaster'?a.blasterLives:a.mistakes===0?3:a.mistakes<=(['connect','pirate','archery'].includes(a.mode)?1:2)?2:1;
  const key=`${a.index}-${a.mode}`;islandProgress[key]=Math.max(islandProgress[key]||0,a.stars);
- a.newlyUnlocked=oceanIslands.flatMap((island,index)=>isIslandLocked(island,previousStars)&&!isIslandLocked(island)?[index]:[]);
+ a.newlyUnlocked=oceanIslands.flatMap((island,index)=>previouslyLocked[index]&&!isIslandLocked(island)?[index]:[]);
  const addedStars=totalStars()+totalRedStars()-previousCollectedStars;
  progressSaved=addedStars>0?recordActivityReward({stars:addedStars,source:`game:${key}`}):true;
  try{localStorage.setItem('ximena-islands-v1',JSON.stringify(islandProgress));}catch{progressSaved=false;}
@@ -880,7 +888,7 @@ function handleAdventure(button){
  const same=candidates.find(el=>el.dataset.play===action&&el.dataset.id===button.dataset.id&&el.dataset.side===button.dataset.side&&el.dataset.mode===button.dataset.mode);
  ((action==='restart'&&adventure.mode==='memory'?document.querySelector('.memory-card'):null)||document.querySelector('.unlock-close')||same||document.querySelector('.result-action,.island-game .primary:not([hidden])')||candidates[0])?.focus({preventScroll:true});
 }
-function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Gana hasta ${starsPerIsland()} estrellas por isla completando los ${MAIN_GAMES_PER_ISLAND} juegos principales. Spelling Bee incluye además Ordena: 5 juegos y hasta 15 estrellas rojas de colección. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong aria-label="${islandStars(index)} de ${starsPerIsland(index)} estrellas${isRedStarIsland(index)?' rojas':''}">${isRedStarIsland(index)?redStarIcon():'⭐'} ${islandStars(index)} / ${starsPerIsland(index)}</strong><small>${progressionModes(index).filter(mode=>gameCompleted(index,mode)).length} / ${progressionModes(index).length} juegos completados</small></button>`).join('')}</div>`;}
+function islandCollectionView(){return `${header('Mis tesoros de las islas','TU PROGRESO')}<p>Las islas 1–21 dan hasta ${starsPerIsland()} estrellas normales. Las islas 22–27 incluyen Ordena y dan hasta 15 estrellas normales. En Spelling Bee puedes ganar 15 estrellas rojas por isla. Memoria es un bonus de monedas. Se conserva tu mejor resultado.${legacyStars()?` Conservas además ${legacyStars()} estrellas de juegos anteriores.`:''}</p><div class="lesson-grid treasure-grid">${islandLessons.map((lesson,index)=>`<button class="lesson-card ${isIslandLocked(oceanIslands[index])?'is-locked':''}" data-lesson="${index}" aria-label="${oceanIslands[index].name}${isIslandLocked(oceanIslands[index])?', bloqueada':''}"><span class="lesson-icon" aria-hidden="true">${isIslandLocked(oceanIslands[index])?'🔒':islandStars(index)?wordIcon(lesson.words[0]):'🏝️'}</span><b>${oceanIslands[index].name}</b><span>${lesson.topic}</span><strong aria-label="${islandStars(index)} de ${starsPerIsland(index)} estrellas${isRedStarIsland(index)?' rojas':''}">${isRedStarIsland(index)?redStarIcon():'⭐'} ${islandStars(index)} / ${starsPerIsland(index)}</strong><small>${progressionModes(index).filter(mode=>gameCompleted(index,mode)).length} / ${progressionModes(index).length} juegos completados</small></button>`).join('')}</div>`;}
 
 // Independent answer/exposure deadlines share the same pausable active-time clock.
 const PIRATE_DIALOGUE_MS=500,PIRATE_LIFT_MS=400,PIRATE_HIDE_MS=250,PIRATE_ANSWER_MS=3000;

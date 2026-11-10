@@ -31,6 +31,6 @@ const EVERYDAY_LESSONS=[
   ['Pilot','Piloto'],['Builder','Constructor / constructora'],['Baker','Panadero / panadera'],['Mechanic','Mecánico / mecánica']
  ]}
 ].map(lesson=>({...lesson,words:lesson.words.map(([en,es],id)=>({
- id,en,es,icon:'✦',image:'/icons/words/everyday/'+en.toLowerCase().replace(/ /g,'-')+'.svg'
+ id,en,es,icon:'✦',image:'/icons/words/everyday/'+en.toLowerCase().replace(/ /g,'-')+'.webp'
 }))}));
 islandLessons.push(...EVERYDAY_LESSONS);

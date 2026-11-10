@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'ximena-app-';
 // Replaced automatically by build:web and by the publication workflow.
-const APP_VERSION = '056d39333624.78ea69793e4c';
+const APP_VERSION = 'b64df9c0aaa3.588dbdf95730';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [
  "/monitor-config.js","/activity-monitor.js","/monitor-cloud.js","/monitor.html","/monitor.css","/monitor-dashboard.js","/monitor-stats.mjs","/vendor/firebase-client.js",
@@ -18,8 +18,8 @@ self.addEventListener('install', event => {
   const cache=await caches.open(CACHE_NAME);
   await cache.addAll(APP_ASSETS.map(path=>new Request(path,{cache:'reload'})));
   const catalog=await cache.match('/icons/words/catalog.json');
-  const {assets}=await catalog.json();
-  await cache.addAll(assets.map(path=>new Request(path,{cache:'reload'})));
+  const {assets,islandArt}=await catalog.json();
+  await cache.addAll([...assets,...islandArt].map(path=>new Request(path,{cache:'reload'})));
  })());
  // The page offers the update only after every asset has downloaded.
 });
@@ -52,7 +52,7 @@ async function loadAsset(request, path) {
 
 self.addEventListener('fetch', event => {
  const url = new URL(event.request.url);
- if (event.request.method !== 'GET' || url.origin !== self.location.origin || (!paths.has(url.pathname)&&!url.pathname.startsWith('/icons/words/'))) return;
+ if (event.request.method !== 'GET' || url.origin !== self.location.origin || (!paths.has(url.pathname)&&!url.pathname.startsWith('/icons/words/')&&!url.pathname.startsWith('/icons/islands/'))) return;
  // Escribe has a new session query each visit; its HTML is always the same asset.
  event.respondWith(loadAsset(event.request, url.pathname));
 });
