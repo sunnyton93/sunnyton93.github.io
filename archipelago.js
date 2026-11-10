@@ -1,4 +1,4 @@
-const OCEAN_SIZE = {width:6400,height:6500};
+const OCEAN_SIZE = {width:6400,height:8700};
 const OCEAN_MARGIN=650;
 const islandRoutePositions=[
  [[1900,650],[2800,400],[3800,800],[4950,420],[5850,1100],[5250,1800],[4100,1500],[3150,2100],[2150,1650]],
