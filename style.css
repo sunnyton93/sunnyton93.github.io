@@ -287,7 +287,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .platform-splash{opacity:0;fill:none;stroke:#effff5;stroke-width:5;stroke-linecap:round;pointer-events:none}.platform-splash.is-active{animation:salta-splash .85s ease-out both}.platform-scene.is-urgent .word-platform:not(.is-sunk){animation:salta-rumble .18s linear infinite alternate}.platform-game:has(.is-urgent) .platform-countdown{color:#bc593e}.platform-scene[data-phase=success] .platform-sparkles{animation:salta-glimmer .35s infinite alternate}
 
 .platform-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#e4eddf;border:1px solid #ccdccb;border-radius:23px;padding:10px 18px;user-select:none}.platform-dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(2,43px);gap:5px}.platform-dpad button{font-size:26px;border:2px solid #accac0;background:linear-gradient(#fffdf1,#d7eadd);color:#34776d;border-radius:13px;box-shadow:0 3px 0 #9bbbaf;touch-action:none;padding:0;min-height:43px}.platform-dpad [data-direction=up]{grid-column:2}.platform-dpad [data-direction=left]{grid-column:1;grid-row:2}.platform-dpad [data-direction=down]{grid-column:2;grid-row:2}.platform-dpad [data-direction=right]{grid-column:3;grid-row:2}.platform-controls button.is-held{transform:translateY(3px);box-shadow:none;background:#b9e3cf}
-.platform-jump{width:95px;height:85px;flex-shrink:0;border-radius:24px;background:linear-gradient(#f6d885,#efbc61);border:2px solid #e1b45b;box-shadow:0 5px 0 #c9984e;color:#775333;font-weight:800;touch-action:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.platform-jump>span{font-size:27px;line-height:1}.platform-jump small{font-size:8px;letter-spacing:1px}.platform-control-hint{text-align:center;color:#608074;font-size:11px;line-height:1.9}.platform-control-hint kbd{background:#f7f8e9;border-radius:5px;padding:3px;font-size:10px}
+.platform-jump{width:108px;height:98px;flex-shrink:0;border-radius:24px;background:linear-gradient(#f6d885,#efbc61);border:2px solid #e1b45b;box-shadow:0 5px 0 #c9984e;color:#775333;font-weight:800;touch-action:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.platform-jump>span{font-size:27px;line-height:1}.platform-jump small{font-size:8px;letter-spacing:1px}.platform-control-hint{text-align:center;color:#608074;font-size:11px;line-height:1.9}.platform-control-hint kbd{background:#f7f8e9;border-radius:5px;padding:3px;font-size:10px}
 .screen-overlay:has(.platform-game)>header{margin-bottom:10px}.island-game:has(.platform-game) .lesson-modes{margin:8px 0}.island-game:has(.platform-game) .lesson-modes button{padding-block:7px;min-height:56px}
 @keyframes salta-host{50%{transform:translateY(-4px) rotate(-4deg)}}
 @keyframes salta-tide{50%{transform:translateY(4px);opacity:.3}}
@@ -364,8 +364,8 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .platform-joystick-track{position:absolute;inset:12%;border:1px dashed #76ab9960;border-radius:50%;pointer-events:none}
 .platform-joystick-thumb{width:43%;aspect-ratio:1;border:2px solid #e9fae5;border-radius:50%;background:radial-gradient(circle at 35% 25%,#c3ead5,#73b4a2 65%,#49917f);box-shadow:0 4px 0 #488774,0 7px 12px #30625240,inset 0 2px 2px #fff9;pointer-events:none;transition:transform .14s ease-out}
 .platform-joystick.is-held .platform-joystick-thumb{transition:none}.platform-joystick-side .platform-control-hint{display:block;font-size:10px}
-@media(max-width:700px){.platform-play-area{grid-template-columns:70px minmax(0,1fr) 64px;gap:4px}.platform-play-area .platform-controls{padding:8px 0;gap:8px}.platform-play-area .platform-jump{width:60px;height:68px;border-radius:20px;font-size:11px}.platform-jump small{font-size:6px}.platform-joystick{width:64px}.platform-joystick-side .platform-control-hint{font-size:8px;line-height:1.4}.platform-joystick-side kbd{display:none}}
-@media(max-width:420px){.platform-play-area{grid-template-columns:56px minmax(0,1fr) 52px;gap:3px}.platform-play-area .platform-jump{width:50px;height:60px;border-radius:17px;font-size:10px}.platform-joystick{width:54px}.platform-jump>span{font-size:23px}.platform-joystick-side .platform-control-hint{font-size:7px}}
+@media(max-width:700px){.platform-play-area{grid-template-columns:70px minmax(0,1fr) 64px;gap:4px}.platform-play-area .platform-controls{padding:8px 0;gap:8px}.platform-play-area .platform-jump{width:70px;height:78px;border-radius:20px;font-size:11px}.platform-jump small{font-size:6px}.platform-joystick{width:64px}.platform-joystick-side .platform-control-hint{font-size:8px;line-height:1.4}.platform-joystick-side kbd{display:none}}
+@media(max-width:420px){.platform-play-area{grid-template-columns:56px minmax(0,1fr) 52px;gap:3px}.platform-play-area .platform-jump{width:60px;height:70px;border-radius:17px;font-size:11px}.platform-joystick{width:54px}.platform-jump>span{font-size:23px}.platform-joystick-side .platform-control-hint{font-size:7px}}
 .platform-keyboard-hint{display:block;margin-top:4px}
 @media(max-width:700px){.platform-keyboard-hint{display:none}}
 /* Island activities occupy the complete viewport, including mobile safe areas. */
@@ -720,7 +720,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
 .archery-game .archery-field{height:clamp(410px,calc(100dvh - 300px),640px)}
 .archery-game .archery-targets{inset:10px}
 .platform-game{max-width:1100px}
-.platform-play-area{position:relative;display:grid;grid-template-columns:128px minmax(0,1fr) 112px;gap:0}
+.platform-play-area{position:relative;display:grid;grid-template-columns:128px minmax(0,1fr) 124px;gap:0}
 .platform-stage{position:relative;grid-column:1/-1;grid-row:1;min-width:0;padding-top:74px;overflow:hidden;border:2px solid #a1cdbc;border-radius:26px;background:linear-gradient(#81c9c9,#459cac);box-shadow:0 5px 0 #438e9c30}
 .platform-play-area .platform-scene{width:100%;max-width:none;height:clamp(300px,calc(100dvh - 370px),490px);max-height:none;border-radius:0;filter:none}
 .platform-stage .platform-owl{position:absolute;left:12px;top:10px;width:54px;height:54px;font-size:30px}
@@ -743,7 +743,7 @@ html,body,#app{width:100%;height:100%;overflow:hidden}.world-app{position:relati
  .platform-timing{top:70px;right:12px;width:88px}
  .platform-timing .platform-countdown{font-size:12px}
  .platform-timing .platform-time{margin-top:4px}
- .platform-play-area{grid-template-columns:76px minmax(0,1fr) 72px}
+ .platform-play-area{grid-template-columns:76px minmax(0,1fr) 84px}
  .platform-play-area .platform-scene{height:clamp(310px,calc(100dvh - 390px),500px)}
  .platform-play-area .platform-controls{padding-bottom:12px}
 }
